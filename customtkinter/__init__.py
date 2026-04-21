@@ -12,7 +12,15 @@ from .windows.widgets.appearance_mode import AppearanceModeTracker
 from .windows.widgets.font import FontManager
 from .windows.widgets.scaling import ScalingTracker
 from .windows.widgets.theme import ThemeManager
-from .windows.widgets.core_rendering import DrawEngine
+from .windows.widgets.core_rendering.draw_engine import DRAWING_METHODS
+from .windows.widgets.core_rendering.draw_engine import Arrow
+from .windows.widgets.core_rendering.draw_engine import BackgroundCorners
+from .windows.widgets.core_rendering.draw_engine import Bar
+from .windows.widgets.core_rendering.draw_engine import BaseShape
+from .windows.widgets.core_rendering.draw_engine import Checkmark
+from .windows.widgets.core_rendering.draw_engine import ProgressBar
+from .windows.widgets.core_rendering.draw_engine import RoundedRect
+from .windows.widgets.core_rendering.draw_engine import Slider
 
 # import base widgets
 from .windows.widgets.core_rendering import CTkCanvas
@@ -134,9 +142,9 @@ class _Showroom(CTk):
         widget_scaling = round(ScalingTracker.widget_scaling*100)
         self.scaling_optionmenu.set(f"{widget_scaling}%")
         self.drawing_label = CTkLabel(self.sidebar_frame, text="Drawing method:", anchor="w")
-        self.drawing_optionmenu = CTkOptionMenu(self.sidebar_frame, values=DrawEngine.DRAWING_METHODS,
+        self.drawing_optionmenu = CTkOptionMenu(self.sidebar_frame, values=DRAWING_METHODS,
                                                 command=self._change_drawing_event)
-        self.drawing_optionmenu.set(DrawEngine.preferred_drawing_method)
+        self.drawing_optionmenu.set(BaseShape.preferred_drawing_method)
 
         self.sidebar_frame.pack(side="left", fill="y")
         self.logo_label.pack(side="top", fill="x", padx=5, pady=5)
@@ -314,6 +322,6 @@ class _Showroom(CTk):
         self.destroy()
 
     def _change_drawing_event(self, new_drawing_method: str) -> None:
-        DrawEngine.preferred_drawing_method = new_drawing_method
+        BaseShape.preferred_drawing_method = new_drawing_method
         self.new_instance_requested = True
         self.destroy()

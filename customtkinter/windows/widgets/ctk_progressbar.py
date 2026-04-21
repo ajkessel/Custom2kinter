@@ -6,7 +6,7 @@ from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkBaseClass
-from .core_rendering import CTkCanvas, DrawEngine
+from .core_rendering import CTkCanvas, RoundedRect, ProgressBar
 from .theme import ThemeManager
 
 
@@ -83,9 +83,10 @@ class CTkProgressBar(CTkBaseClass):
                                  width=self._apply_widget_scaling(self._desired_width),
                                  height=self._apply_widget_scaling(self._desired_height))
         self._canvas.grid(row=0, column=0, rowspan=1, columnspan=1, sticky="nswe")
-        self._draw_engine = DrawEngine(self._canvas)
+        self._rounded_rect = RoundedRect(self._canvas)
+        self._progress_bar = ProgressBar(self._canvas)
 
-        self._draw()  # initial draw
+        self._draw(force_colors_update=True)
 
         if self._variable is not None:
             self._variable_callback_name = self._variable.trace_add("write", self._variable_callback)
@@ -98,7 +99,7 @@ class CTkProgressBar(CTkBaseClass):
 
         self._canvas.configure(width=self._apply_widget_scaling(self._desired_width),
                                height=self._apply_widget_scaling(self._desired_height))
-        self._draw(no_color_updates=True)
+        self._draw()
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
         super()._set_dimensions(width, height)
@@ -113,41 +114,37 @@ class CTkProgressBar(CTkBaseClass):
 
         super().destroy()
 
-    def _draw(self, no_color_updates: bool = False) -> None:
-        super()._draw(no_color_updates)
+    def _draw(self, force_colors_update: bool = False) -> None:
+        super()._draw(force_colors_update)
 
         if self._mode == "determinate":
-            requires_recoloring = self._draw_engine.draw_rounded_progress_bar_with_border(self._apply_widget_scaling(self._current_width),
-                                                                                          self._apply_widget_scaling(self._current_height),
-                                                                                          self._apply_widget_scaling(self._theme_info["corner_radius"]),
-                                                                                          self._apply_widget_scaling(self._theme_info["border_width"]),
-                                                                                          0,
-                                                                                          self._determinate_value,
-                                                                                          self._theme_info["orientation"])
-        else:  # indeterminate mode
+            progress_value_1 = 0.0
+            progress_value_2 = self._determinate_value
+        else:
             progress_value = (math.sin(self._indeterminate_value * math.pi / 40) + 1) / 2
             progress_value_1 = min(1.0, progress_value + (self._indeterminate_width / 2))
             progress_value_2 = max(0.0, progress_value - (self._indeterminate_width / 2))
 
-            requires_recoloring = self._draw_engine.draw_rounded_progress_bar_with_border(self._apply_widget_scaling(self._current_width),
-                                                                                          self._apply_widget_scaling(self._current_height),
-                                                                                          self._apply_widget_scaling(self._theme_info["corner_radius"]),
-                                                                                          self._apply_widget_scaling(self._theme_info["border_width"]),
-                                                                                          progress_value_1,
-                                                                                          progress_value_2,
-                                                                                          self._theme_info["orientation"])
+        common_args = (self._apply_widget_scaling(self._current_width),
+                       self._apply_widget_scaling(self._current_height),
+                       self._apply_widget_scaling(self._theme_info["corner_radius"]),
+                       self._apply_widget_scaling(self._theme_info["border_width"]))
 
-        if no_color_updates is False or requires_recoloring:
+        requires_recoloring_1 = self._rounded_rect.update(*common_args)
+
+        requires_recoloring_2 = self._progress_bar.update(*common_args,
+                                                          self._theme_info["orientation"],
+                                                          progress_value_1,
+                                                          progress_value_2)
+
+        if force_colors_update or requires_recoloring_1 or requires_recoloring_2:
+            self._rounded_rect.raise_()
+            self._progress_bar.raise_()
+
             self._canvas.configure(bg=self._apply_appearance_mode(self._bg_color))
-            self._canvas.itemconfig("border_parts",
-                                    fill=self._apply_appearance_mode(self._theme_info["border_color"]),
-                                    outline=self._apply_appearance_mode(self._theme_info["border_color"]))
-            self._canvas.itemconfig("inner_parts",
-                                    fill=self._apply_appearance_mode(self._theme_info["fg_color"]),
-                                    outline=self._apply_appearance_mode(self._theme_info["fg_color"]))
-            self._canvas.itemconfig("progress_parts",
-                                    fill=self._apply_appearance_mode(self._theme_info["progress_color"]),
-                                    outline=self._apply_appearance_mode(self._theme_info["progress_color"]))
+            self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
+            self._rounded_rect.set_main_color(self._apply_appearance_mode(self._theme_info["fg_color"]))
+            self._progress_bar.set_color(self._apply_appearance_mode(self._theme_info["progress_color"]))
 
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkProgressBarArgs]) -> None:
         if "corner_radius" in kwargs:
@@ -217,7 +214,7 @@ class CTkProgressBar(CTkBaseClass):
         elif self._determinate_value < 0.0:
             self._determinate_value = 0.0
 
-        self._draw(no_color_updates=True)
+        self._draw()
 
         if self._variable is not None and not from_variable_callback:
             self._variable_callback_blocked = True

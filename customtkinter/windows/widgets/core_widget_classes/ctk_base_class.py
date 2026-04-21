@@ -95,9 +95,9 @@ class CTkBaseClass(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClas
         CTkAppearanceModeBaseClass.destroy(self)
         CTkScalingBaseClass.destroy(self)
 
-    def _draw(self, no_color_updates: bool = False) -> None:
+    def _draw(self, force_colors_update: bool = False) -> None:
         """ can be overridden but super method must be called """
-        if no_color_updates is False:
+        if force_colors_update:
             # Configuring color of tkinter.Frame not necessary at the moment?
             # Causes flickering on Windows and Linux for segmented button for some reason!
             # super().configure(bg=self._apply_appearance_mode(self._bg_color))
@@ -129,7 +129,7 @@ class CTkBaseClass(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClas
         check_kwargs_empty(kwargs, raise_error=True)
 
         if require_redraw:
-            self._draw()
+            self._draw(force_colors_update=True)
 
     def cget(self, attribute_name: str) -> Any:
         """ basic cget with bg_color, width, height support, calls cget of tkinter.Frame """
@@ -161,7 +161,7 @@ class CTkBaseClass(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClas
             self._current_width = self._reverse_widget_scaling(event.width)  # adjust current size according to new size given by event
             self._current_height = self._reverse_widget_scaling(event.height)  # _current_width and _current_height are independent of the scale
 
-            self._draw(no_color_updates=True)  # faster drawing without color changes
+            self._draw()  # faster drawing without color changes
 
     def _detect_color_of_master(self, widget: tkinter.Misc | None = None) -> str | tuple[str, str]:
         """ detect foreground color of master widget for bg_color and transparent color """
@@ -197,7 +197,7 @@ class CTkBaseClass(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClas
 
     def _set_appearance_mode(self, mode: Literal["light", "dark"]) -> None:
         super()._set_appearance_mode(mode)
-        self._draw()
+        self._draw(force_colors_update=True)
         super().update_idletasks()
 
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:

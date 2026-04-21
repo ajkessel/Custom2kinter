@@ -5,7 +5,7 @@ from typing import Any, Callable, TYPE_CHECKING
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkBaseClass
-from .core_rendering import CTkCanvas, DrawEngine
+from .core_rendering import CTkCanvas, RoundedRect
 from .font.ctk_font import CTkFont, CTkFontArgs
 from .theme import ThemeManager
 from .image import CTkImage
@@ -86,7 +86,7 @@ class CTkLabel(CTkBaseClass):
                                  width=self._apply_widget_scaling(self._desired_width),
                                  height=self._apply_widget_scaling(self._desired_height))
         self._canvas.grid(row=0, column=0, sticky="nswe")
-        self._draw_engine = DrawEngine(self._canvas)
+        self._rounded_rect = RoundedRect(self._canvas)
 
         self._label = tkinter.Label(master=self,
                                     highlightthickness=0,
@@ -102,7 +102,7 @@ class CTkLabel(CTkBaseClass):
 
         self._create_grid()
         self._update_image()
-        self._draw()
+        self._draw(force_colors_update=True)
 
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
@@ -113,7 +113,7 @@ class CTkLabel(CTkBaseClass):
 
         self._create_grid()
         self._update_image()
-        self._draw(no_color_updates=True)
+        self._draw()
 
     def _set_appearance_mode(self, mode: Literal["light", "dark"]) -> None:
         super()._set_appearance_mode(mode)
@@ -154,38 +154,26 @@ class CTkLabel(CTkBaseClass):
         self._label.grid(row=0, column=0, sticky=text_label_grid_sticky,
                          padx=self._apply_widget_scaling(self._theme_info["corner_radius"]))
 
-    def _draw(self, no_color_updates: bool = False) -> None:
-        super()._draw(no_color_updates)
+    def _draw(self, force_colors_update: bool = False) -> None:
+        super()._draw(force_colors_update)
 
-        requires_recoloring = self._draw_engine.draw_rounded_rect_with_border(self._apply_widget_scaling(self._current_width),
-                                                                              self._apply_widget_scaling(self._current_height),
-                                                                              self._apply_widget_scaling(self._theme_info["corner_radius"]),
-                                                                              self._apply_widget_scaling(self._theme_info["border_width"]))
+        requires_recoloring = self._rounded_rect.update(self._apply_widget_scaling(self._current_width),
+                                                        self._apply_widget_scaling(self._current_height),
+                                                        self._apply_widget_scaling(self._theme_info["corner_radius"]),
+                                                        self._apply_widget_scaling(self._theme_info["border_width"]))
 
-        if no_color_updates is False or requires_recoloring:
+        if force_colors_update or requires_recoloring:
             bg_color = self._apply_appearance_mode(self._bg_color)
             fg_color = self._apply_appearance_mode(self._theme_info["fg_color"])
+            if fg_color == "transparent":
+                fg_color = bg_color
 
             self._canvas.configure(bg=bg_color)
-
-            # set color for the button border parts (outline)
-            self._canvas.itemconfig("border_parts",
-                                    outline=self._apply_appearance_mode(self._theme_info["border_color"]),
-                                    fill=self._apply_appearance_mode(self._theme_info["border_color"]))
-
-            # set color for inner parts
-            if fg_color == "transparent":
-                self._canvas.itemconfig("inner_parts", outline=bg_color, fill=bg_color)
-
-                self._label.configure(fg=self._apply_appearance_mode(self._theme_info["text_color"]),
-                                      disabledforeground=self._apply_appearance_mode(self._theme_info["text_color_disabled"]),
-                                      bg=bg_color)
-            else:
-                self._canvas.itemconfig("inner_parts", outline=fg_color, fill=fg_color)
-
-                self._label.configure(fg=self._apply_appearance_mode(self._theme_info["text_color"]),
-                                      disabledforeground=self._apply_appearance_mode(self._theme_info["text_color_disabled"]),
-                                      bg=fg_color)
+            self._rounded_rect.set_main_color(fg_color)
+            self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
+            self._label.configure(fg=self._apply_appearance_mode(self._theme_info["text_color"]),
+                                  disabledforeground=self._apply_appearance_mode(self._theme_info["text_color_disabled"]),
+                                  bg=fg_color)
 
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkLabelArgs]) -> None:
         if "corner_radius" in kwargs:

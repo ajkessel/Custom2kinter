@@ -31,6 +31,8 @@ class ThemeInfo(TypedDict, total=False):
     border_spacing: int
     bg_color: str | tuple[str, str]
     fg_color: str | tuple[str, str]
+    fg_color_checked: str | tuple[str, str]
+    fg_color_unchecked: str | tuple[str, str]
     top_fg_color: str | tuple[str, str]
     border_color: str | tuple[str, str]
     checkmark_color: str | tuple[str, str]
@@ -66,7 +68,6 @@ class ThemeInfo(TypedDict, total=False):
     wraplength: int
     minimum_pixel_length: int
     min_character_width: int
-    overwrite_preferred_drawing_method: Literal["polygon_shapes", "font_shapes", "circle_shapes"] | None
     button: dict
     dropdown: dict
     entry: dict

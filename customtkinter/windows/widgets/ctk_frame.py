@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import tkinter
 from typing import Any, Callable
-from typing_extensions import Literal, TypedDict, Unpack
+from typing_extensions import TypedDict, Unpack
 
 from .core_widget_classes import CTkBaseClass
-from .core_rendering import CTkCanvas, DrawEngine
+from .core_rendering import CTkCanvas, BackgroundCorners, RoundedRect
 from .theme import ThemeManager
 
 
@@ -18,7 +18,6 @@ class CTkFrameArgs(TypedDict, total=False):
     fg_color: str | tuple[str, str]
     top_fg_color: str | tuple[str, str]
     border_color: str | tuple[str, str]
-    overwrite_preferred_drawing_method: Literal["polygon_shapes", "font_shapes", "circle_shapes"] | None
 
 
 class CTkFrame(CTkBaseClass):
@@ -56,17 +55,17 @@ class CTkFrame(CTkBaseClass):
             self.master._fg_color == self._fg_color):
             self._fg_color = self._theme_info["top_fg_color"]
 
-        self._background_corner_colors: tuple[str | tuple[str, str], ...] | None = background_corner_colors  # rendering options for DrawEngine
+        self._background_corner_colors: tuple[str | tuple[str, str], ...] | None = background_corner_colors
 
         self._canvas = CTkCanvas(master=self,
                                  highlightthickness=0,
                                  width=self._apply_widget_scaling(self._current_width),
                                  height=self._apply_widget_scaling(self._current_height))
         self._canvas.place(x=0, y=0, relwidth=1, relheight=1)
-        self._canvas.configure(bg=self._apply_appearance_mode(self._bg_color))
-        self._draw_engine = DrawEngine(self._canvas)
+        self._background_corners = BackgroundCorners(self._canvas)
+        self._rounded_rect = RoundedRect(self._canvas)
 
-        self._draw(no_color_updates=True)
+        self._draw(force_colors_update=True)
 
     def winfo_children(self) -> list[tkinter.Widget]:
         """
@@ -95,45 +94,38 @@ class CTkFrame(CTkBaseClass):
                                height=self._apply_widget_scaling(self._desired_height))
         self._draw()
 
-    def _draw(self, no_color_updates: bool = False) -> None:
-        super()._draw(no_color_updates)
+    def _draw(self, force_colors_update: bool = False) -> None:
+        super()._draw(force_colors_update)
 
         if not self._canvas.winfo_exists():
             return
 
         if self._background_corner_colors is not None:
-            self._draw_engine.draw_background_corners(self._apply_widget_scaling(self._current_width),
-                                                      self._apply_widget_scaling(self._current_height))
-            self._canvas.itemconfig("background_corner_top_left", fill=self._apply_appearance_mode(self._background_corner_colors[0]))
-            self._canvas.itemconfig("background_corner_top_right", fill=self._apply_appearance_mode(self._background_corner_colors[1]))
-            self._canvas.itemconfig("background_corner_bottom_right", fill=self._apply_appearance_mode(self._background_corner_colors[2]))
-            self._canvas.itemconfig("background_corner_bottom_left", fill=self._apply_appearance_mode(self._background_corner_colors[3]))
+            if (self._background_corners.update(self._apply_widget_scaling(self._current_width),
+                                                self._apply_widget_scaling(self._current_height)) or
+                force_colors_update):
+                self._background_corners.set_colors(self._apply_appearance_mode(self._background_corner_colors[0]),
+                                                    self._apply_appearance_mode(self._background_corner_colors[1]),
+                                                    self._apply_appearance_mode(self._background_corner_colors[2]),
+                                                    self._apply_appearance_mode(self._background_corner_colors[3]))
         else:
-            self._canvas.delete("background_parts")
+            self._background_corners.delete()
 
-        requires_recoloring = self._draw_engine.draw_rounded_rect_with_border(self._apply_widget_scaling(self._current_width),
-                                                                              self._apply_widget_scaling(self._current_height),
-                                                                              self._apply_widget_scaling(self._theme_info["corner_radius"]),
-                                                                              self._apply_widget_scaling(self._theme_info["border_width"]),
-                                                                              overwrite_preferred_drawing_method=self._theme_info["overwrite_preferred_drawing_method"])
+        requires_recoloring = self._rounded_rect.update(self._apply_widget_scaling(self._current_width),
+                                                        self._apply_widget_scaling(self._current_height),
+                                                        self._apply_widget_scaling(self._theme_info["corner_radius"]),
+                                                        self._apply_widget_scaling(self._theme_info["border_width"]))
 
-        if no_color_updates is False or requires_recoloring:
-            if self._fg_color == "transparent":
-                self._canvas.itemconfig("inner_parts",
-                                        fill=self._apply_appearance_mode(self._bg_color),
-                                        outline=self._apply_appearance_mode(self._bg_color))
-            else:
-                self._canvas.itemconfig("inner_parts",
-                                        fill=self._apply_appearance_mode(self._fg_color),
-                                        outline=self._apply_appearance_mode(self._fg_color))
+        if force_colors_update or requires_recoloring:
+            self._background_corners.raise_()
+            self._rounded_rect.raise_()
 
-            self._canvas.itemconfig("border_parts",
-                                    fill=self._apply_appearance_mode(self._theme_info["border_color"]),
-                                    outline=self._apply_appearance_mode(self._theme_info["border_color"]))
             self._canvas.configure(bg=self._apply_appearance_mode(self._bg_color))
-
-        # self._canvas.tag_lower("inner_parts")  # maybe unnecessary, I don't know ???
-        # self._canvas.tag_lower("border_parts")
+            self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
+            if self._fg_color == "transparent":
+                self._rounded_rect.set_main_color(self._apply_appearance_mode(self._bg_color))
+            else:
+                self._rounded_rect.set_main_color(self._apply_appearance_mode(self._fg_color))
 
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkFrameArgs]) -> None:
         if "corner_radius" in kwargs:

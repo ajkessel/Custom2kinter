@@ -6,7 +6,7 @@ from typing import Any, Callable, TYPE_CHECKING
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkBaseClass
-from .core_rendering import CTkCanvas, DrawEngine
+from .core_rendering import CTkCanvas, BackgroundCorners, RoundedRect
 from .theme import ThemeManager
 from .font.ctk_font import CTkFont, CTkFontArgs
 from .image import CTkImage
@@ -71,7 +71,7 @@ class CTkButton(CTkBaseClass):
         self._theme_info["corner_radius"] = min(self._theme_info["corner_radius"], round(self._current_height / 2))
 
         # rendering options
-        self._background_corner_colors: tuple[str | tuple[str, str], ...] | None = background_corner_colors  # rendering options for DrawEngine
+        self._background_corner_colors: tuple[str | tuple[str, str], ...] | None = background_corner_colors
 
         # text and font
         self._textvariable: tkinter.Variable | None = textvariable
@@ -97,13 +97,16 @@ class CTkButton(CTkBaseClass):
                                  width=self._apply_widget_scaling(self._desired_width),
                                  height=self._apply_widget_scaling(self._desired_height))
         self._canvas.grid(row=0, column=0, rowspan=5, columnspan=5, sticky="nsew")
-        self._draw_engine = DrawEngine(self._canvas)
-        self._draw_engine.set_round_to_even_numbers(self._theme_info["round_width_to_even_numbers"], self._theme_info["round_height_to_even_numbers"])  # rendering options
-
+        self._background_corners = BackgroundCorners(self._canvas,
+                                                     self._theme_info["round_width_to_even_numbers"],
+                                                     self._theme_info["round_height_to_even_numbers"])
+        self._rounded_rect = RoundedRect(self._canvas,
+                                         self._theme_info["round_width_to_even_numbers"],
+                                         self._theme_info["round_height_to_even_numbers"])
         # configure cursor and initial draw
         self._create_bindings()
         self._set_cursor()
-        self._draw()
+        self._draw(force_colors_update=True)
 
     def _create_bindings(self, sequence: str | None = None) -> None:
         """ set necessary bindings for functionality of widget, will overwrite other bindings """
@@ -144,7 +147,7 @@ class CTkButton(CTkBaseClass):
 
         self._canvas.configure(width=self._apply_widget_scaling(self._desired_width),
                                height=self._apply_widget_scaling(self._desired_height))
-        self._draw(no_color_updates=True)
+        self._draw()
 
     def _set_appearance_mode(self, mode: Literal["light", "dark"]) -> None:
         super()._set_appearance_mode(mode)
@@ -179,42 +182,36 @@ class CTkButton(CTkBaseClass):
         self._font.remove_size_configure_callback(self._update_font)
         super().destroy()
 
-    def _draw(self, no_color_updates: bool = False) -> None:
-        super()._draw(no_color_updates)
+    def _draw(self, force_colors_update: bool = False) -> None:
+        super()._draw(force_colors_update)
 
         if self._background_corner_colors is not None:
-            self._draw_engine.draw_background_corners(self._apply_widget_scaling(self._current_width),
-                                                      self._apply_widget_scaling(self._current_height))
-            self._canvas.itemconfig("background_corner_top_left", fill=self._apply_appearance_mode(self._background_corner_colors[0]))
-            self._canvas.itemconfig("background_corner_top_right", fill=self._apply_appearance_mode(self._background_corner_colors[1]))
-            self._canvas.itemconfig("background_corner_bottom_right", fill=self._apply_appearance_mode(self._background_corner_colors[2]))
-            self._canvas.itemconfig("background_corner_bottom_left", fill=self._apply_appearance_mode(self._background_corner_colors[3]))
+            if (self._background_corners.update(self._apply_widget_scaling(self._current_width+1),
+                                                self._apply_widget_scaling(self._current_height+1)) or
+                force_colors_update):
+                self._background_corners.set_colors(self._apply_appearance_mode(self._background_corner_colors[0]),
+                                                    self._apply_appearance_mode(self._background_corner_colors[1]),
+                                                    self._apply_appearance_mode(self._background_corner_colors[2]),
+                                                    self._apply_appearance_mode(self._background_corner_colors[3]))
         else:
-            self._canvas.delete("background_parts")
+            self._background_corners.delete()
 
-        requires_recoloring = self._draw_engine.draw_rounded_rect_with_border(self._apply_widget_scaling(self._current_width),
-                                                                              self._apply_widget_scaling(self._current_height),
-                                                                              self._apply_widget_scaling(self._theme_info["corner_radius"]),
-                                                                              self._apply_widget_scaling(self._theme_info["border_width"]))
+        requires_recoloring = self._rounded_rect.update(self._apply_widget_scaling(self._current_width),
+                                                        self._apply_widget_scaling(self._current_height),
+                                                        self._apply_widget_scaling(self._theme_info["corner_radius"]),
+                                                        self._apply_widget_scaling(self._theme_info["border_width"]))
 
-        if no_color_updates is False or requires_recoloring:
+        if force_colors_update or requires_recoloring:
+            self._background_corners.raise_()
+            self._rounded_rect.raise_()
+
+            fg_color = self._theme_info["fg_color"]
+            if fg_color == "transparent":
+                fg_color = self._bg_color
 
             self._canvas.configure(bg=self._apply_appearance_mode(self._bg_color))
-
-            # set color for the button border parts (outline)
-            self._canvas.itemconfig("border_parts",
-                                    outline=self._apply_appearance_mode(self._theme_info["border_color"]),
-                                    fill=self._apply_appearance_mode(self._theme_info["border_color"]))
-
-            # set color for inner button parts
-            if self._theme_info["fg_color"] == "transparent":
-                self._canvas.itemconfig("inner_parts",
-                                        outline=self._apply_appearance_mode(self._bg_color),
-                                        fill=self._apply_appearance_mode(self._bg_color))
-            else:
-                self._canvas.itemconfig("inner_parts",
-                                        outline=self._apply_appearance_mode(self._theme_info["fg_color"]),
-                                        fill=self._apply_appearance_mode(self._theme_info["fg_color"]))
+            self._rounded_rect.set_main_color(self._apply_appearance_mode(fg_color))
+            self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
 
         # create text label if text given
         if self._theme_info["text"] is not None and self._theme_info["text"] != "":
@@ -235,7 +232,7 @@ class CTkButton(CTkBaseClass):
                 self._text_label.bind("<ButtonRelease-1>", self._on_release)
                 self._text_label.bind("<ButtonRelease-1>", self._on_release)
 
-            if no_color_updates is False:
+            if force_colors_update:
                 # set text_label fg color (text color)
                 self._text_label.configure(fg=self._apply_appearance_mode(self._theme_info["text_color"]))
 
@@ -268,7 +265,7 @@ class CTkButton(CTkBaseClass):
                 self._image_label.bind("<ButtonRelease-1>", self._on_release)
                 self._image_label.bind("<ButtonRelease-1>", self._on_release)
 
-            if no_color_updates is False:
+            if force_colors_update:
                 # set image_label bg color (background color of label)
                 if self._apply_appearance_mode(self._theme_info["fg_color"]) == "transparent":
                     self._image_label.configure(bg=self._apply_appearance_mode(self._bg_color))
@@ -481,45 +478,37 @@ class CTkButton(CTkBaseClass):
     def _on_enter(self, _: tkinter.Event | None = None) -> None:
         self._mouse_inside = True
         if self._theme_info["hover"] is True and self._state == "normal":
-            if self._theme_info["hover_color"] is None:
-                inner_parts_color = self._theme_info["fg_color"]
-            else:
-                inner_parts_color = self._theme_info["hover_color"]
+            hover_color = self._apply_appearance_mode(self._theme_info["hover_color"])
 
-            # set color of inner button parts to hover color
-            self._canvas.itemconfig("inner_parts",
-                                    outline=self._apply_appearance_mode(inner_parts_color),
-                                    fill=self._apply_appearance_mode(inner_parts_color))
+            self._rounded_rect.set_main_color(hover_color)
 
             # set text_label bg color to button hover color
             if self._text_label is not None:
-                self._text_label.configure(bg=self._apply_appearance_mode(inner_parts_color))
+                self._text_label.configure(bg=hover_color)
 
             # set image_label bg color to button hover color
             if self._image_label is not None:
-                self._image_label.configure(bg=self._apply_appearance_mode(inner_parts_color))
+                self._image_label.configure(bg=hover_color)
 
     def _on_leave(self, _: tkinter.Event | None = None) -> None:
         self._mouse_inside = False
         self._click_animation_running = False
 
         if self._theme_info["fg_color"] == "transparent":
-            inner_parts_color = self._bg_color
+            fg_color = self._apply_appearance_mode(self._bg_color)
         else:
-            inner_parts_color = self._theme_info["fg_color"]
+            fg_color = self._apply_appearance_mode(self._theme_info["fg_color"])
 
         # set color of inner button parts
-        self._canvas.itemconfig("inner_parts",
-                                outline=self._apply_appearance_mode(inner_parts_color),
-                                fill=self._apply_appearance_mode(inner_parts_color))
+        self._rounded_rect.set_main_color(fg_color)
 
         # set text_label bg color (label color)
         if self._text_label is not None:
-            self._text_label.configure(bg=self._apply_appearance_mode(inner_parts_color))
+            self._text_label.configure(bg=fg_color)
 
         # set image_label bg color (image bg color)
         if self._image_label is not None:
-            self._image_label.configure(bg=self._apply_appearance_mode(inner_parts_color))
+            self._image_label.configure(bg=fg_color)
 
     def _click_animation(self) -> None:
         if self._click_animation_running:

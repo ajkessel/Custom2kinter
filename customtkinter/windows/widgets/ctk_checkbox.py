@@ -6,7 +6,7 @@ from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkBaseClass
-from .core_rendering import CTkCanvas, DrawEngine
+from .core_rendering import CTkCanvas, RoundedRect, Checkmark
 from .font.ctk_font import CTkFont, CTkFontArgs
 from .theme import ThemeManager
 
@@ -93,7 +93,8 @@ class CTkCheckBox(CTkBaseClass):
                                  width=self._apply_widget_scaling(self._theme_info["checkbox_width"]),
                                  height=self._apply_widget_scaling(self._theme_info["checkbox_height"]))
         self._canvas.grid(row=0, column=0, sticky="e")
-        self._draw_engine = DrawEngine(self._canvas)
+        self._rounded_rect = RoundedRect(self._canvas)
+        self._checkmark = Checkmark(self._canvas)
 
         self._text_label = tkinter.Label(master=self,
                                          bd=0,
@@ -113,7 +114,7 @@ class CTkCheckBox(CTkBaseClass):
 
         self._create_bindings()
         self._set_cursor()
-        self._draw()
+        self._draw(force_colors_update=True)
 
     def _create_bindings(self, sequence: str | None = None) -> None:
         """ set necessary bindings for functionality of widget, will overwrite other bindings """
@@ -133,12 +134,11 @@ class CTkCheckBox(CTkBaseClass):
         self.grid_columnconfigure(1, weight=0, minsize=self._apply_widget_scaling(6))
         self._text_label.configure(font=self._apply_font_scaling(self._font))
 
-        self._canvas.delete("checkmark")
         self._bg_canvas.configure(width=self._apply_widget_scaling(self._desired_width),
                                   height=self._apply_widget_scaling(self._desired_height))
         self._canvas.configure(width=self._apply_widget_scaling(self._theme_info["checkbox_width"]),
                                height=self._apply_widget_scaling(self._theme_info["checkbox_height"]))
-        self._draw(no_color_updates=True)
+        self._draw()
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
         super()._set_dimensions(width, height)
@@ -163,49 +163,46 @@ class CTkCheckBox(CTkBaseClass):
         self._font.remove_size_configure_callback(self._update_font)
         super().destroy()
 
-    def _draw(self, no_color_updates: bool = False) -> None:
-        super()._draw(no_color_updates)
+    def _draw(self, force_colors_update: bool = False) -> None:
+        super()._draw(force_colors_update)
 
-        requires_recoloring_1 = self._draw_engine.draw_rounded_rect_with_border(self._apply_widget_scaling(self._theme_info["checkbox_width"]),
-                                                                                self._apply_widget_scaling(self._theme_info["checkbox_height"]),
-                                                                                self._apply_widget_scaling(self._theme_info["corner_radius"]),
-                                                                                self._apply_widget_scaling(self._theme_info["border_width"]))
+        requires_recoloring_1 = self._rounded_rect.update(self._apply_widget_scaling(self._theme_info["checkbox_width"]),
+                                                          self._apply_widget_scaling(self._theme_info["checkbox_height"]),
+                                                          self._apply_widget_scaling(self._theme_info["corner_radius"]),
+                                                          self._apply_widget_scaling(self._theme_info["border_width"]))
 
         if self._check_state is True:
-            requires_recoloring_2 = self._draw_engine.draw_checkmark(self._apply_widget_scaling(self._theme_info["checkbox_width"]),
-                                                                     self._apply_widget_scaling(self._theme_info["checkbox_height"]),
-                                                                     self._apply_widget_scaling(self._theme_info["checkbox_height"] * 0.58))
+            requires_recoloring_2 = self._checkmark.update(self._apply_widget_scaling(self._theme_info["checkbox_width"] / 2),
+                                                           self._apply_widget_scaling(self._theme_info["checkbox_height"] / 2),
+                                                           self._apply_widget_scaling(self._theme_info["checkbox_height"] * 0.58))
         else:
             requires_recoloring_2 = False
-            self._canvas.delete("checkmark")
+            self._checkmark.delete()
 
-        if no_color_updates is False or requires_recoloring_1 or requires_recoloring_2:
-            self._bg_canvas.configure(bg=self._apply_appearance_mode(self._bg_color))
-            self._canvas.configure(bg=self._apply_appearance_mode(self._bg_color))
+        if force_colors_update or requires_recoloring_1 or requires_recoloring_2:
+            self._rounded_rect.raise_()
+            self._checkmark.raise_()
+
+            bg_color = self._apply_appearance_mode(self._bg_color)
+
+            self._bg_canvas.configure(bg=bg_color)
+            self._canvas.configure(bg=bg_color)
 
             if self._check_state is True:
                 fg_color = self._apply_appearance_mode(self._theme_info["fg_color"])
-                self._canvas.itemconfig("inner_parts", outline=fg_color, fill=fg_color)
-                self._canvas.itemconfig("border_parts", outline=fg_color, fill=fg_color)
-
-                if "create_line" in self._canvas.gettags("checkmark"):
-                    self._canvas.itemconfig("checkmark", fill=self._apply_appearance_mode(self._theme_info["checkmark_color"]))
-                else:
-                    self._canvas.itemconfig("checkmark", fill=self._apply_appearance_mode(self._theme_info["checkmark_color"]))
+                self._rounded_rect.set_main_color(fg_color)
+                self._rounded_rect.set_border_color(fg_color)
+                self._checkmark.set_color(self._apply_appearance_mode(self._theme_info["checkmark_color"]))
             else:
-                self._canvas.itemconfig("inner_parts",
-                                        outline=self._apply_appearance_mode(self._bg_color),
-                                        fill=self._apply_appearance_mode(self._bg_color))
-                self._canvas.itemconfig("border_parts",
-                                        outline=self._apply_appearance_mode(self._theme_info["border_color"]),
-                                        fill=self._apply_appearance_mode(self._theme_info["border_color"]))
+                self._rounded_rect.set_main_color(bg_color)
+                self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
 
             if self._state == tkinter.DISABLED:
                 self._text_label.configure(fg=self._apply_appearance_mode(self._theme_info["text_color_disabled"]))
             else:
                 self._text_label.configure(fg=self._apply_appearance_mode(self._theme_info["text_color"]))
 
-            self._text_label.configure(bg=self._apply_appearance_mode(self._bg_color))
+            self._text_label.configure(bg=bg_color)
 
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkCheckBoxArgs]) -> None:
         require_new_state = False
@@ -343,24 +340,19 @@ class CTkCheckBox(CTkBaseClass):
     def _on_enter(self, _: tkinter.Event | None = None) -> None:
         if self._theme_info["hover"] is True and self._state == tkinter.NORMAL:
             hover_color = self._apply_appearance_mode(self._theme_info["hover_color"])
+
+            self._rounded_rect.set_main_color(hover_color)
             if self._check_state is True:
-                self._canvas.itemconfig("inner_parts", fill=hover_color, outline=hover_color)
-                self._canvas.itemconfig("border_parts", fill=hover_color, outline=hover_color)
-            else:
-                self._canvas.itemconfig("inner_parts", fill=hover_color, outline=hover_color)
+                self._rounded_rect.set_border_color(hover_color)
 
     def _on_leave(self, _: tkinter.Event | None = None) -> None:
         if self._check_state is True:
             fg_color = self._apply_appearance_mode(self._theme_info["fg_color"])
-            self._canvas.itemconfig("inner_parts", fill=fg_color, outline=fg_color)
-            self._canvas.itemconfig("border_parts", fill=fg_color, outline=fg_color)
+            self._rounded_rect.set_main_color(fg_color)
+            self._rounded_rect.set_border_color(fg_color)
         else:
-            self._canvas.itemconfig("inner_parts",
-                                    fill=self._apply_appearance_mode(self._bg_color),
-                                    outline=self._apply_appearance_mode(self._bg_color))
-            self._canvas.itemconfig("border_parts",
-                                    fill=self._apply_appearance_mode(self._theme_info["border_color"]),
-                                    outline=self._apply_appearance_mode(self._theme_info["border_color"]))
+            self._rounded_rect.set_main_color(self._apply_appearance_mode(self._bg_color))
+            self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
 
     def _variable_callback(self, *_: str) -> None:
         if not self._variable_callback_blocked:
@@ -371,7 +363,7 @@ class CTkCheckBox(CTkBaseClass):
 
     def set(self, state: bool, from_variable_callback: bool = False) -> None:
         self._check_state = state
-        self._draw()
+        self._draw(force_colors_update=True)
 
         if self._variable is not None and not from_variable_callback:
             self._variable_callback_blocked = True

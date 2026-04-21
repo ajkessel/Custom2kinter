@@ -62,7 +62,7 @@ class CTkSegmentedButton(CTkFrame):
                          corner_radius=self._theme_sb_info["corner_radius"])
 
         # rendering options
-        self._background_corner_colors: tuple[str | tuple[str, str], ...] | None = background_corner_colors  # rendering options for DrawEngine
+        self._background_corner_colors: tuple[str | tuple[str, str], ...] | None = background_corner_colors
 
         #functionality
         self._state: Literal["normal", "disabled"] = state
@@ -177,7 +177,7 @@ class CTkSegmentedButton(CTkFrame):
                                command=lambda v=value: self.set(v, from_button_callback=True),
                                background_corner_colors=None,
                                round_width_to_even_numbers=False,
-                               round_height_to_even_numbers=False)  # DrawEngine rendering option (so that theres no gap between buttons)
+                               round_height_to_even_numbers=False)  # rendering option (so that theres no gap between buttons)
         return new_button
 
     @staticmethod

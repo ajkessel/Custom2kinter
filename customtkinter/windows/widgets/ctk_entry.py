@@ -5,7 +5,7 @@ from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkBaseClass
-from .core_rendering import CTkCanvas, DrawEngine
+from .core_rendering import CTkCanvas, RoundedRect
 from .font.ctk_font import CTkFont, CTkFontArgs
 from .theme import ThemeManager
 from .utility import pop_from_dict_by_set
@@ -84,7 +84,7 @@ class CTkEntry(CTkBaseClass):
                                  highlightthickness=0,
                                  width=self._apply_widget_scaling(self._current_width),
                                  height=self._apply_widget_scaling(self._current_height))
-        self._draw_engine = DrawEngine(self._canvas)
+        self._rounded_rect = RoundedRect(self._canvas)
 
         self._entry = tkinter.Entry(master=self,
                                     bd=0,
@@ -98,7 +98,7 @@ class CTkEntry(CTkBaseClass):
         self._create_grid()
         self._activate_placeholder()
         self._create_bindings()
-        self._draw()
+        self._draw(force_colors_update=True)
 
     def _create_bindings(self, sequence: str | None = None) -> None:
         """ set necessary bindings for functionality of widget, will overwrite other bindings """
@@ -129,14 +129,14 @@ class CTkEntry(CTkBaseClass):
         self._entry.configure(font=self._apply_font_scaling(self._font))
         self._canvas.configure(width=self._apply_widget_scaling(self._desired_width), height=self._apply_widget_scaling(self._desired_height))
         self._create_grid()
-        self._draw(no_color_updates=True)
+        self._draw()
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
         super()._set_dimensions(width, height)
 
         self._canvas.configure(width=self._apply_widget_scaling(self._desired_width),
                                height=self._apply_widget_scaling(self._desired_height))
-        self._draw(no_color_updates=True)
+        self._draw()
 
     def _update_font(self) -> None:
         """ pass font to tkinter widgets with applied font scaling and update grid with workaround """
@@ -154,17 +154,19 @@ class CTkEntry(CTkBaseClass):
         self._font.remove_size_configure_callback(self._update_font)
         super().destroy()
 
-    def _draw(self, no_color_updates: bool = False) -> None:
-        super()._draw(no_color_updates)
+    def _draw(self, force_colors_update: bool = False) -> None:
+        super()._draw(force_colors_update)
 
-        requires_recoloring = self._draw_engine.draw_rounded_rect_with_border(self._apply_widget_scaling(self._current_width),
-                                                                              self._apply_widget_scaling(self._current_height),
-                                                                              self._apply_widget_scaling(self._theme_info["corner_radius"]),
-                                                                              self._apply_widget_scaling(self._theme_info["border_width"]))
+        requires_recoloring = self._rounded_rect.update(self._apply_widget_scaling(self._current_width),
+                                                        self._apply_widget_scaling(self._current_height),
+                                                        self._apply_widget_scaling(self._theme_info["corner_radius"]),
+                                                        self._apply_widget_scaling(self._theme_info["border_width"]))
 
-        if requires_recoloring or no_color_updates is False:
+        if force_colors_update or requires_recoloring:
             bg_color = self._apply_appearance_mode(self._bg_color)
             fg_color = self._apply_appearance_mode(self._theme_info["fg_color"])
+            if fg_color == "transparent":
+                fg_color = bg_color
             border_color = self._apply_appearance_mode(self._theme_info["border_color"])
             if self._placeholder_text_active:
                 text_color = self._apply_appearance_mode(self._theme_info["placeholder_text_color"])
@@ -172,16 +174,10 @@ class CTkEntry(CTkBaseClass):
                 text_color = self._apply_appearance_mode(self._theme_info["text_color"])
 
             self._canvas.configure(bg=bg_color)
-
-            if fg_color == "transparent":
-                self._canvas.itemconfig("inner_parts", fill=bg_color, outline=bg_color)
-                self._entry.configure(bg=bg_color, disabledbackground=bg_color, readonlybackground=bg_color, highlightcolor=bg_color)
-            else:
-                self._canvas.itemconfig("inner_parts", fill=fg_color, outline=fg_color)
-                self._entry.configure(bg=fg_color, disabledbackground=fg_color, readonlybackground=fg_color, highlightcolor=fg_color)
-
-            self._canvas.itemconfig("border_parts", fill=border_color, outline=border_color)
-            self._entry.config(fg=text_color, disabledforeground=text_color, insertbackground=text_color)
+            self._rounded_rect.set_main_color(fg_color)
+            self._rounded_rect.set_border_color(border_color)
+            self._entry.configure(bg=fg_color, disabledbackground=fg_color, readonlybackground=fg_color, highlightcolor=fg_color)
+            self._entry.configure(fg=text_color, disabledforeground=text_color, insertbackground=text_color)
 
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkEntryArgs]) -> None:
         if "corner_radius" in kwargs:

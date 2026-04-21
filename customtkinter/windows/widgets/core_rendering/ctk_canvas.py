@@ -31,6 +31,7 @@ class CTkCanvas(tkinter.Canvas):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
+        self.shapes_counter: int = 0
         self._aa_circle_canvas_ids: set[int] = set()
 
     @classmethod

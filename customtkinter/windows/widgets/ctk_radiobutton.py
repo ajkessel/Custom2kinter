@@ -6,7 +6,7 @@ from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkBaseClass
-from .core_rendering import CTkCanvas, DrawEngine
+from .core_rendering import CTkCanvas, RoundedRect
 from .font.ctk_font import CTkFont, CTkFontArgs
 from .theme import ThemeManager
 
@@ -91,7 +91,7 @@ class CTkRadioButton(CTkBaseClass):
                                  width=self._apply_widget_scaling(self._theme_info["radiobutton_width"]),
                                  height=self._apply_widget_scaling(self._theme_info["radiobutton_height"]))
         self._canvas.grid(row=0, column=0)
-        self._draw_engine = DrawEngine(self._canvas)
+        self._rounded_rect = RoundedRect(self._canvas)
 
         self._text_label = tkinter.Label(master=self,
                                          bd=0,
@@ -110,7 +110,7 @@ class CTkRadioButton(CTkBaseClass):
 
         self._create_bindings()
         self._set_cursor()
-        self._draw()
+        self._draw(force_colors_update=True)
 
     def _create_bindings(self, sequence: str | None = None) -> None:
         """ set necessary bindings for functionality of widget, will overwrite other bindings """
@@ -134,7 +134,7 @@ class CTkRadioButton(CTkBaseClass):
                                   height=self._apply_widget_scaling(self._desired_height))
         self._canvas.configure(width=self._apply_widget_scaling(self._theme_info["radiobutton_width"]),
                                height=self._apply_widget_scaling(self._theme_info["radiobutton_height"]))
-        self._draw(no_color_updates=True)
+        self._draw()
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
         super()._set_dimensions(width, height)
@@ -158,43 +158,33 @@ class CTkRadioButton(CTkBaseClass):
         self._font.remove_size_configure_callback(self._update_font)
         super().destroy()
 
-    def _draw(self, no_color_updates: bool = False) -> None:
-        super()._draw(no_color_updates)
+    def _draw(self, force_colors_update: bool = False) -> None:
+        super()._draw(force_colors_update)
 
-        if self._check_state is True:
-            requires_recoloring = self._draw_engine.draw_rounded_rect_with_border(self._apply_widget_scaling(self._theme_info["radiobutton_width"]),
-                                                                                  self._apply_widget_scaling(self._theme_info["radiobutton_height"]),
-                                                                                  self._apply_widget_scaling(self._theme_info["corner_radius"]),
-                                                                                  self._apply_widget_scaling(self._theme_info["border_width_checked"]))
-        else:
-            requires_recoloring = self._draw_engine.draw_rounded_rect_with_border(self._apply_widget_scaling(self._theme_info["radiobutton_width"]),
-                                                                                  self._apply_widget_scaling(self._theme_info["radiobutton_height"]),
-                                                                                  self._apply_widget_scaling(self._theme_info["corner_radius"]),
-                                                                                  self._apply_widget_scaling(self._theme_info["border_width_unchecked"]))
+        border_width = self._theme_info["border_width_checked" if self._check_state else "border_width_unchecked"]
 
-        if no_color_updates is False or requires_recoloring:
+        requires_recoloring = self._rounded_rect.update(self._apply_widget_scaling(self._theme_info["radiobutton_width"]),
+                                                        self._apply_widget_scaling(self._theme_info["radiobutton_height"]),
+                                                        self._apply_widget_scaling(self._theme_info["corner_radius"]),
+                                                        self._apply_widget_scaling(border_width))
+
+        if force_colors_update or requires_recoloring:
             bg_color = self._apply_appearance_mode(self._bg_color)
 
             self._bg_canvas.configure(bg=bg_color)
             self._canvas.configure(bg=bg_color)
+            self._rounded_rect.set_main_color(bg_color)
+            self._text_label.configure(bg=bg_color)
 
-            if self._check_state is False:
-                self._canvas.itemconfig("border_parts",
-                                        outline=self._apply_appearance_mode(self._theme_info["border_color"]),
-                                        fill=self._apply_appearance_mode(self._theme_info["border_color"]))
+            if self._check_state:
+                self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["fg_color"]))
             else:
-                self._canvas.itemconfig("border_parts",
-                                        outline=self._apply_appearance_mode(self._theme_info["fg_color"]),
-                                        fill=self._apply_appearance_mode(self._theme_info["fg_color"]))
-
-            self._canvas.itemconfig("inner_parts", outline=bg_color, fill=bg_color)
-
+                self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
             if self._state == tkinter.DISABLED:
                 self._text_label.configure(fg=self._apply_appearance_mode(self._theme_info["text_color_disabled"]))
             else:
                 self._text_label.configure(fg=self._apply_appearance_mode(self._theme_info["text_color"]))
 
-            self._text_label.configure(bg=bg_color)
 
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkRadioButtonArgs]) -> None:
         require_new_state = False
@@ -325,19 +315,13 @@ class CTkRadioButton(CTkBaseClass):
 
     def _on_enter(self, _: tkinter.Event | None = None) -> None:
         if self._theme_info["hover"] is True and self._state == tkinter.NORMAL:
-            self._canvas.itemconfig("border_parts",
-                                    fill=self._apply_appearance_mode(self._theme_info["hover_color"]),
-                                    outline=self._apply_appearance_mode(self._theme_info["hover_color"]))
+            self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["hover_color"]))
 
     def _on_leave(self, _: tkinter.Event | None = None) -> None:
-        if self._check_state is True:
-            self._canvas.itemconfig("border_parts",
-                                    fill=self._apply_appearance_mode(self._theme_info["fg_color"]),
-                                    outline=self._apply_appearance_mode(self._theme_info["fg_color"]))
+        if self._check_state:
+            self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["fg_color"]))
         else:
-            self._canvas.itemconfig("border_parts",
-                                    fill=self._apply_appearance_mode(self._theme_info["border_color"]),
-                                    outline=self._apply_appearance_mode(self._theme_info["border_color"]))
+            self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
 
     def _variable_callback(self, *_: str) -> None:
         if not self._variable_callback_blocked:
@@ -348,7 +332,7 @@ class CTkRadioButton(CTkBaseClass):
 
     def set(self, state: bool, from_variable_callback: bool = False) -> None:
         self._check_state = state
-        self._draw()
+        self._draw(force_colors_update=True)
 
         if self._variable is not None and not from_variable_callback:
             self._variable_callback_blocked = True

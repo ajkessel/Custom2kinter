@@ -6,7 +6,7 @@ from typing_extensions import Literal, TypedDict, Unpack
 
 
 from .core_widget_classes import CTkBaseClass
-from .core_rendering import CTkCanvas, DrawEngine
+from .core_rendering import CTkCanvas, RoundedRect
 from .font.ctk_font import CTkFont, CTkFontArgs
 from .ctk_scrollbar import CTkScrollbar, CTkScrollbarArgs
 from .theme import ThemeManager
@@ -80,7 +80,7 @@ class CTkTextbox(CTkBaseClass):
                                  height=self._apply_widget_scaling(self._desired_height))
         self._canvas.grid(row=0, column=0, rowspan=2, columnspan=2, sticky="nsew")
         self._canvas.configure(bg=self._apply_appearance_mode(self._bg_color))
-        self._draw_engine = DrawEngine(self._canvas)
+        self._rounded_rect = RoundedRect(self._canvas)
 
         self._textbox = tkinter.Text(self,
                                      fg=self._apply_appearance_mode(self._theme_info["text_color"]),
@@ -94,8 +94,8 @@ class CTkTextbox(CTkBaseClass):
 
         # scrollbars
         scrollbar_kwargs = self._theme_info["scrollbar"]
-        scrollbar_kwargs["fg_color"] = self._theme_info["fg_color"]
-        scrollbar_kwargs["border_spacing"] = 0
+        scrollbar_kwargs["bg_color"] = self._theme_info["fg_color"]
+        scrollbar_kwargs["border_width"] = 0
         scrollbar_kwargs["thickness"] = 8
         scrollbar_kwargs["lenght"] = 0
 
@@ -112,7 +112,7 @@ class CTkTextbox(CTkBaseClass):
         self._create_grid_for_text_and_scrollbars(re_grid_textbox=True, re_grid_x_scrollbar=True, re_grid_y_scrollbar=True)
 
         self.after(50, self._check_if_scrollbars_needed, None, True)
-        self._draw()
+        self._draw(force_colors_update=True)
 
     def _create_grid_for_text_and_scrollbars(self,
                                              re_grid_textbox: bool = False,
@@ -178,7 +178,7 @@ class CTkTextbox(CTkBaseClass):
         self._canvas.configure(width=self._apply_widget_scaling(self._desired_width),
                                height=self._apply_widget_scaling(self._desired_height))
         self._create_grid_for_text_and_scrollbars(re_grid_textbox=True, re_grid_x_scrollbar=True, re_grid_y_scrollbar=True)
-        self._draw(no_color_updates=True)
+        self._draw()
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
         super()._set_dimensions(width, height)
@@ -200,39 +200,28 @@ class CTkTextbox(CTkBaseClass):
         self._font.remove_size_configure_callback(self._update_font)
         super().destroy()
 
-    def _draw(self, no_color_updates: bool = False) -> None:
-        super()._draw(no_color_updates)
+    def _draw(self, force_colors_update: bool = False) -> None:
+        super()._draw(force_colors_update)
 
         if not self._canvas.winfo_exists():
             return
 
-        requires_recoloring = self._draw_engine.draw_rounded_rect_with_border(self._apply_widget_scaling(self._current_width),
-                                                                              self._apply_widget_scaling(self._current_height),
-                                                                              self._apply_widget_scaling(self._theme_info["corner_radius"]),
-                                                                              self._apply_widget_scaling(self._theme_info["border_width"]))
+        requires_recoloring = self._rounded_rect.update(self._apply_widget_scaling(self._current_width),
+                                                        self._apply_widget_scaling(self._current_height),
+                                                        self._apply_widget_scaling(self._theme_info["corner_radius"]),
+                                                        self._apply_widget_scaling(self._theme_info["border_width"]))
 
-        if no_color_updates is False or requires_recoloring:
+        if force_colors_update or requires_recoloring:
             bg_color = self._apply_appearance_mode(self._bg_color)
             fg_color = self._apply_appearance_mode(self._theme_info["fg_color"])
+            if fg_color == "transparent":
+                fg_color = bg_color
             text_color = self._apply_appearance_mode(self._theme_info["text_color"])
-            border_color = self._apply_appearance_mode(self._theme_info["border_color"])
 
-            if self._theme_info["fg_color"] == "transparent":
-                self._canvas.itemconfig("inner_parts", fill=bg_color, outline=bg_color)
-                self._textbox.configure(fg=text_color, bg=bg_color, insertbackground=text_color)
-                self._x_scrollbar.configure(fg_color=self._bg_color)
-                self._y_scrollbar.configure(fg_color=self._bg_color)
-            else:
-                self._canvas.itemconfig("inner_parts", fill=fg_color, outline=fg_color)
-                self._textbox.configure(fg=text_color, bg=fg_color, insertbackground=text_color)
-                self._x_scrollbar.configure(fg_color=self._theme_info["fg_color"])
-                self._y_scrollbar.configure(fg_color=self._theme_info["fg_color"])
-
-            self._canvas.itemconfig("border_parts", fill=border_color, outline=border_color)
             self._canvas.configure(bg=bg_color)
-
-        self._canvas.tag_lower("inner_parts")
-        self._canvas.tag_lower("border_parts")
+            self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
+            self._rounded_rect.set_main_color(fg_color)
+            self._textbox.configure(fg=text_color, bg=fg_color, insertbackground=text_color)
 
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkTextboxArgs]) -> None:
         if "corner_radius" in kwargs:
@@ -252,6 +241,8 @@ class CTkTextbox(CTkBaseClass):
 
         if "fg_color" in kwargs:
             self._theme_info["fg_color"] = self._check_color_type(kwargs.pop("fg_color"), transparency=True)
+            self._x_scrollbar.configure(bg_color=self._theme_info["fg_color"])
+            self._y_scrollbar.configure(bg_color=self._theme_info["fg_color"])
             require_redraw = True
 
         if "border_color" in kwargs:

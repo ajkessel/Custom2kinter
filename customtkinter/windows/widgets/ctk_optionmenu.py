@@ -8,7 +8,7 @@ from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkBaseClass
 from .core_widget_classes.dropdown_menu import DropdownMenu, DropdownMenuArgs
-from .core_rendering import CTkCanvas, DrawEngine
+from .core_rendering import CTkCanvas, RoundedRect, Arrow
 from .font.ctk_font import CTkFont, CTkFontArgs
 from .theme import ThemeManager
 
@@ -86,7 +86,8 @@ class CTkOptionMenu(CTkBaseClass):
                                  highlightthickness=0,
                                  width=self._apply_widget_scaling(self._desired_width),
                                  height=self._apply_widget_scaling(self._desired_height))
-        self._draw_engine = DrawEngine(self._canvas)
+        self._rounded_rect = RoundedRect(self._canvas, vertical_split=True)
+        self._arrow = Arrow(self._canvas)
 
         self._text_label = tkinter.Label(master=self,
                                          font=self._apply_font_scaling(self._font),
@@ -107,7 +108,7 @@ class CTkOptionMenu(CTkBaseClass):
             self.grid_propagate(False)
 
         self._create_bindings()
-        self._draw()  # initial draw
+        self._draw(force_colors_update=True)
 
         if self._variable is not None:
             self._variable_callback_name = self._variable.trace_add("write", self._variable_callback)
@@ -142,7 +143,7 @@ class CTkOptionMenu(CTkBaseClass):
         self._canvas.configure(width=self._apply_widget_scaling(self._desired_width),
                                height=self._apply_widget_scaling(self._desired_height))
         self._create_grid()
-        self._draw(no_color_updates=True)
+        self._draw()
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
         super()._set_dimensions(width, height)
@@ -167,41 +168,38 @@ class CTkOptionMenu(CTkBaseClass):
         self._font.remove_size_configure_callback(self._update_font)
         super().destroy()
 
-    def _draw(self, no_color_updates: bool = False) -> None:
-        super()._draw(no_color_updates)
+    def _draw(self, force_colors_update: bool = False) -> None:
+        super()._draw(force_colors_update)
 
         left_section_width = self._current_width - self._current_height
-        requires_recoloring = self._draw_engine.draw_rounded_rect_with_border_vertical_split(self._apply_widget_scaling(self._current_width),
-                                                                                             self._apply_widget_scaling(self._current_height),
-                                                                                             self._apply_widget_scaling(self._theme_info["corner_radius"]),
-                                                                                             0,
-                                                                                             self._apply_widget_scaling(left_section_width))
 
-        requires_recoloring_2 = self._draw_engine.draw_dropdown_arrow(self._apply_widget_scaling(self._current_width - (self._current_height / 2)),
-                                                                      self._apply_widget_scaling(self._current_height / 2),
-                                                                      self._apply_widget_scaling(self._current_height / 3))
+        requires_recoloring_1 = self._rounded_rect.update(self._apply_widget_scaling(self._current_width),
+                                                          self._apply_widget_scaling(self._current_height),
+                                                          self._apply_widget_scaling(self._theme_info["corner_radius"]),
+                                                          0,
+                                                          self._apply_widget_scaling(left_section_width))
 
-        if no_color_updates is False or requires_recoloring or requires_recoloring_2:
+        requires_recoloring_2 = self._arrow.update(self._apply_widget_scaling(self._current_width - (self._current_height / 2)),
+                                                   self._apply_widget_scaling(self._current_height / 2),
+                                                   self._apply_widget_scaling(self._current_height / 3),
+                                                   180)
+
+        if force_colors_update or requires_recoloring_1 or requires_recoloring_2:
+            self._rounded_rect.raise_()
+            self._arrow.raise_()
+
             fg_color = self._apply_appearance_mode(self._theme_info["fg_color"])
             button_color = self._apply_appearance_mode(self._theme_info["button_color"])
-            text_color = self._apply_appearance_mode(self._theme_info["text_color"])
+            if self._state == tkinter.DISABLED:
+                text_color = self._apply_appearance_mode(self._theme_info["text_color_disabled"])
+            else:
+                text_color = self._apply_appearance_mode(self._theme_info["text_color"])
 
             self._canvas.configure(bg=self._apply_appearance_mode(self._bg_color))
-
-            self._canvas.itemconfig("inner_parts_left", outline=fg_color, fill=fg_color)
-            self._canvas.itemconfig("inner_parts_right", outline=button_color, fill=button_color)
-
-            self._text_label.configure(fg=text_color)
-
-            if self._state == tkinter.DISABLED:
-                self._text_label.configure(fg=self._apply_appearance_mode(self._theme_info["text_color_disabled"]))
-                self._canvas.itemconfig("dropdown_arrow",
-                                        fill=self._apply_appearance_mode(self._theme_info["text_color_disabled"]))
-            else:
-                self._text_label.configure(fg=text_color)
-                self._canvas.itemconfig("dropdown_arrow", fill=text_color)
-
-            self._text_label.configure(bg=fg_color)
+            self._rounded_rect.set_main_color(fg_color, "left")
+            self._rounded_rect.set_main_color(button_color, "right")
+            self._arrow.set_color(text_color)
+            self._text_label.configure(fg=text_color, bg=fg_color)
 
         self._canvas.update_idletasks()
 
@@ -300,17 +298,11 @@ class CTkOptionMenu(CTkBaseClass):
 
     def _on_enter(self, _: tkinter.Event | None = None) -> None:
         self._close_on_next_click = self._dropdown_menu.is_open()
-        if self._theme_info["hover"] is True and self._state == tkinter.NORMAL and len(self._values) > 0:
-            # set color of inner button parts to hover color
-            self._canvas.itemconfig("inner_parts_right",
-                                    outline=self._apply_appearance_mode(self._theme_info["button_hover_color"]),
-                                    fill=self._apply_appearance_mode(self._theme_info["button_hover_color"]))
+        if self._theme_info["hover"] is True and self._state != tkinter.DISABLED and len(self._values) > 0:
+            self._rounded_rect.set_main_color(self._apply_appearance_mode(self._theme_info["button_hover_color"]), "right")
 
     def _on_leave(self, _: tkinter.Event | None = None) -> None:
-        # set color of inner button parts
-        self._canvas.itemconfig("inner_parts_right",
-                                outline=self._apply_appearance_mode(self._theme_info["button_color"]),
-                                fill=self._apply_appearance_mode(self._theme_info["button_color"]))
+        self._rounded_rect.set_main_color(self._apply_appearance_mode(self._theme_info["button_color"]), "right")
 
     def _variable_callback(self, *_: str) -> None:
         if not self._variable_callback_blocked:
