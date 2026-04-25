@@ -4,9 +4,9 @@ import tkinter
 from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
-from .core_widget_classes import CTkBaseClass
+from .core_widget_classes import CTkContainer, CTkWidget
 from .core_rendering import CTkCanvas, RoundedRect
-from .theme import ThemeManager
+from .theme import ColorType, TransparentColorType, ThemeManager
 from .ctk_frame import CTkFrame
 from .ctk_segmented_button import CTkSegmentedButton, CTkSegmentedButtonArgs
 
@@ -16,15 +16,15 @@ class CTkTabviewArgs(TypedDict, total=False):
     height: int
     corner_radius: int
     border_width: int
-    bg_color: str | tuple[str, str]
-    fg_color: str | tuple[str, str]
-    top_fg_color: str | tuple[str, str]
-    border_color: str | tuple[str, str]
+    bg_color: TransparentColorType
+    fg_color: TransparentColorType
+    top_fg_color: ColorType
+    border_color: ColorType
     anchor: str  #center or combination of n, e, s, w
     segmented_button: CTkSegmentedButtonArgs
 
 
-class CTkTabview(CTkBaseClass):
+class CTkTabview(CTkWidget, CTkContainer):
     """
     Tabview...
     For detailed information check out the documentation.
@@ -36,7 +36,7 @@ class CTkTabview(CTkBaseClass):
     _segmented_button_border_width: int = 3
 
     def __init__(self,
-                 master: tkinter.Misc,
+                 master: CTkContainer,
                  theme_key: str | None = None,
                  state: Literal["normal", "disabled"] = "normal",
                  command: Callable[[str], None] | None = None,
@@ -50,17 +50,19 @@ class CTkTabview(CTkBaseClass):
                 self._theme_info[key] = self._check_color_type(self._theme_info[key],
                                                                transparency=key in ("fg_color", "bg_color"))
 
-        # transfer basic functionality (_bg_color, size, __appearance_mode, scaling) to CTkBaseClass
-        super().__init__(master=master,
-                         bg_color=self._theme_info["bg_color"],
-                         width=self._theme_info["width"],
-                         height=self._theme_info["height"])
+        CTkWidget.__init__(self,
+                           master=master,
+                           bg_color=self._theme_info["bg_color"],
+                           width=self._theme_info["width"],
+                           height=self._theme_info["height"])
+        CTkContainer.__init__(self,
+                              fg_color=self._theme_info["fg_color"])
 
-        # determine fg_color of frame: use "top" one if not forced and parent frame has the same fg_color
-        self._fg_color: str | tuple[str, str] = self._theme_info["fg_color"]
+        # update fg_color: use "top" version if not forced and parent frame has the same fg_color
+        # (if _fg_color is "transparent" we don't change it)
         if (("fg_color" not in kwargs or "top_fg_color" in kwargs) and
-            isinstance(self.master, CTkFrame) and
-            self.master._fg_color == self._fg_color):
+            isinstance(self.master, CTkContainer) and
+            self.master.get_fg_color() == self._fg_color):
             self._fg_color = self._theme_info["top_fg_color"]
 
         #functionality
@@ -183,17 +185,6 @@ class CTkTabview(CTkBaseClass):
             if name != exclude_name:
                 frame.grid_forget()
 
-    def _create_tab(self) -> CTkFrame:
-        color = self._bg_color if self._fg_color == "transparent" else self._fg_color
-        new_tab = CTkFrame(self,
-                           height=0,
-                           width=0,
-                           border_width=0,
-                           corner_radius=0,
-                           fg_color=color,
-                           bg_color=color)
-        return new_tab
-
     def _draw(self, force_colors_update: bool = False) -> None:
         super()._draw(force_colors_update)
 
@@ -207,24 +198,21 @@ class CTkTabview(CTkBaseClass):
 
         if force_colors_update or requires_recoloring:
             bg_color = self._apply_appearance_mode(self._bg_color)
-            fg_color = self._apply_appearance_mode(self._fg_color)
-            if fg_color == "transparent":
-                fg_color = bg_color
+            fg_color = self._apply_appearance_mode(self.get_fg_color())
 
             self._canvas.configure(bg=bg_color)
             tkinter.Frame.configure(self, bg=bg_color)  # configure bg color of tkinter.Frame, cause canvas does not fill frame
             self._rounded_rect.set_main_color(fg_color)
             self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
-            for tab in self._tab_dict.values():
-                tab.configure(fg_color=fg_color, bg_color=fg_color)
 
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkTabviewArgs]) -> None:
+        propagate_required = False
+
         if "corner_radius" in kwargs:
             self._theme_info["corner_radius"] = kwargs.pop("corner_radius")
             self._set_grid_segmented_button()
             self._set_grid_current_tab()
             self._set_grid_canvas()
-            self._configure_segmented_button_background_corners()
             self._segmented_button.configure(corner_radius=self._theme_info["corner_radius"])
 
         if "border_width" in kwargs:
@@ -233,8 +221,11 @@ class CTkTabview(CTkBaseClass):
 
         if "fg_color" in kwargs:
             self._fg_color = self._check_color_type(kwargs.pop("fg_color"), transparency=True)
-            self._configure_segmented_button_background_corners()
             require_redraw = True
+            propagate_required = True
+
+        if "bg_color" in kwargs:
+            propagate_required = True
 
         if "border_color" in kwargs:
             self._theme_info["border_color"] = self._check_color_type(kwargs.pop("border_color"))
@@ -255,6 +246,9 @@ class CTkTabview(CTkBaseClass):
             self._segmented_button.configure(state=kwargs.pop("state"))
 
         super().configure(require_redraw=require_redraw, **kwargs)
+        if propagate_required:
+            self.propagate_fg_color(self.winfo_children())
+            self._configure_segmented_button_background_corners()
 
     def cget(self, attribute_name: str) -> Any:
         if attribute_name == "state":
@@ -267,6 +261,12 @@ class CTkTabview(CTkBaseClass):
             return self._segmented_button.cget(attribute_name.removeprefix("segmented_button_"))
         else:
             return super().cget(attribute_name)
+
+    def get_fg_color(self) -> ColorType:
+        if self._fg_color == "transparent":
+            return self._bg_color
+        else:
+            return self._fg_color
 
     def tab(self, name: str) -> CTkFrame:
         """ returns reference to the tab with given name """
@@ -285,7 +285,13 @@ class CTkTabview(CTkBaseClass):
                 self._set_grid_segmented_button()
 
             self._name_list.append(name)
-            self._tab_dict[name] = self._create_tab()
+            self._tab_dict[name] =  CTkFrame(self,
+                                             height=0,
+                                             width=0,
+                                             border_width=0,
+                                             corner_radius=0,
+                                             fg_color="transparent",
+                                             bg_color="transparent")
             self._segmented_button.insert(index, name)
 
             # if created tab is only tab select this tab

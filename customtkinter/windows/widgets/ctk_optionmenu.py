@@ -6,38 +6,38 @@ import copy
 from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
-from .core_widget_classes import CTkBaseClass
+from .core_widget_classes import CTkContainer, CTkWidget
 from .core_widget_classes.dropdown_menu import DropdownMenu, DropdownMenuArgs
 from .core_rendering import CTkCanvas, RoundedRect, Arrow
-from .font.ctk_font import CTkFont, CTkFontArgs
-from .theme import ThemeManager
+from .font.ctk_font import CTkFont, FontType
+from .theme import ColorType, TransparentColorType, ThemeManager
 
 
 class CTkOptionMenuArgs(TypedDict, total=False):
     width: int
     height: int
     corner_radius: int
-    bg_color: str | tuple[str, str]
-    fg_color: str | tuple[str, str]
-    button_color: str | tuple[str, str]
-    button_hover_color: str | tuple[str, str]
-    text_color: str | tuple[str, str]
-    text_color_disabled: str | tuple[str, str]
+    bg_color: TransparentColorType
+    fg_color: ColorType
+    button_color: ColorType
+    button_hover_color: ColorType
+    text_color: ColorType
+    text_color_disabled: ColorType
     hover: bool
     dynamic_resizing: bool
-    font: CTkFontArgs | CTkFont | tuple | str
+    font: FontType
     anchor: str  #center or combination of n, e, s, w
     dropdown: DropdownMenuArgs
 
 
-class CTkOptionMenu(CTkBaseClass):
+class CTkOptionMenu(CTkWidget):
     """
     Optionmenu with rounded corners, dropdown menu, variable support, command.
     For detailed information check out the documentation.
     """
 
     def __init__(self,
-                 master: tkinter.Misc,
+                 master: CTkContainer,
                  theme_key: str | None = None,
                  state: Literal["normal", "disabled"] = "normal",
                  values: list[str] | None = None,
@@ -53,7 +53,6 @@ class CTkOptionMenu(CTkBaseClass):
                 self._theme_info[key] = self._check_color_type(self._theme_info[key],
                                                                transparency=key == "bg_color")
 
-        # transfer basic functionality (_bg_color, size, __appearance_mode, scaling) to CTkBaseClass
         super().__init__(master=master,
                          bg_color=self._theme_info["bg_color"],
                          width=self._theme_info["width"],

@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import tkinter
 import sys
-from typing import Any
+from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .appearance_mode import CTkAppearanceModeBaseClass
 from .scaling import CTkScalingBaseClass
-from .core_widget_classes import CTkBaseClass
-from .theme import ThemeManager
+from .core_widget_classes import CTkContainer
+from .theme import ColorType, ThemeManager
 from .ctk_frame import CTkFrame, CTkFrameArgs
 from .ctk_scrollbar import CTkScrollbar, CTkScrollbarArgs
 from .ctk_slider import CTkSlider
@@ -24,9 +24,9 @@ class CTkScrollableFrameArgs(TypedDict, total=False):
     scrollbar: CTkScrollbarArgs
     label: CTkLabelArgs
 
-class CTkScrollableFrame(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
+class CTkScrollableFrame(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTkContainer):
     def __init__(self,
-                 master: tkinter.Misc,
+                 master: CTkContainer,
                  theme_key: str | None = None,
                  **kwargs: Unpack[CTkScrollableFrameArgs]) -> None:
 
@@ -36,6 +36,8 @@ class CTkScrollableFrame(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBa
         frame_kwargs["width"] = 0
         frame_kwargs["height"] = 0
         self._parent_frame = CTkFrame(master=master, **frame_kwargs)
+        self._pf_original_configure: Callable = self._parent_frame.configure
+        self._parent_frame.configure = self._parent_frame_configure
         self._parent_canvas = tkinter.Canvas(master=self._parent_frame, highlightthickness=0)
         self._set_scroll_increments()
 
@@ -55,35 +57,38 @@ class CTkScrollableFrame(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBa
         tkinter.Frame.__init__(self, master=self._parent_canvas, highlightthickness=0)
         CTkAppearanceModeBaseClass.__init__(self)
         CTkScalingBaseClass.__init__(self, scaling_type="widget")
+        CTkContainer.__init__(self, fg_color="transparent")
 
         self._create_grid()
+        self._create_bindings()
+        self._create_window_id: int = self._parent_canvas.create_window(0, 0, window=self, anchor="nw")
 
         self._parent_canvas.configure(width=self._apply_widget_scaling(self._theme_info["width"]),
                                       height=self._apply_widget_scaling(self._theme_info["height"]))
-
-        self.bind("<Configure>", lambda _: self._parent_canvas.configure(scrollregion=self._parent_canvas.bbox("all")))
-        self._parent_canvas.bind("<Configure>", self._fit_frame_dimensions_to_canvas)
-
-        if "linux" in sys.platform:
-            self.bind_all("<Button-4>", self._mouse_wheel_all, add=True)
-            self.bind_all("<Button-5>", self._mouse_wheel_all, add=True)
-        else:
-            self.bind_all("<MouseWheel>", self._mouse_wheel_all, add=True)
-
-        self.bind_all("<KeyPress-Shift_L>", self._keyboard_shift_press_all, add=True)
-        self.bind_all("<KeyPress-Shift_R>", self._keyboard_shift_press_all, add=True)
-        self.bind_all("<KeyRelease-Shift_L>", self._keyboard_shift_release_all, add=True)
-        self.bind_all("<KeyRelease-Shift_R>", self._keyboard_shift_release_all, add=True)
-        self._create_window_id: int = self._parent_canvas.create_window(0, 0, window=self, anchor="nw")
-
-        if self._parent_frame.cget("fg_color") == "transparent":
-            tkinter.Frame.configure(self, bg=self._apply_appearance_mode(self._parent_frame.cget("bg_color")))
-            self._parent_canvas.configure(bg=self._apply_appearance_mode(self._parent_frame.cget("bg_color")))
-        else:
-            tkinter.Frame.configure(self, bg=self._apply_appearance_mode(self._parent_frame.cget("fg_color")))
-            self._parent_canvas.configure(bg=self._apply_appearance_mode(self._parent_frame.cget("fg_color")))
+        self._draw(force_colors_update=True)
 
         self._shift_pressed: bool = False
+
+    def _create_bindings(self, sequence: str | None = None) -> None:
+        if sequence is None or sequence == "<Configure>":
+            self.bind("<Configure>", lambda _: self._parent_canvas.configure(scrollregion=self._parent_canvas.bbox("all")))
+            self._parent_canvas.bind("<Configure>", self._fit_frame_dimensions_to_canvas)
+        if sequence is None or sequence == "<KeyPress-Shift_L>":
+            self.bind_all("<KeyPress-Shift_L>", self._keyboard_shift_press_all, add=True)
+        if sequence is None or sequence == "<KeyPress-Shift_R>":
+            self.bind_all("<KeyPress-Shift_R>", self._keyboard_shift_press_all, add=True)
+        if sequence is None or sequence == "<KeyRelease-Shift_L>":
+            self.bind_all("<KeyRelease-Shift_L>", self._keyboard_shift_release_all, add=True)
+        if sequence is None or sequence == "<KeyRelease-Shift_R>":
+            self.bind_all("<KeyRelease-Shift_R>", self._keyboard_shift_release_all, add=True)
+        if "linux" in sys.platform:
+            if sequence is None or sequence == "<Button-4>":
+                self.bind_all("<Button-4>", self._mouse_wheel_all, add=True)
+            if sequence is None or sequence == "<Button-5>":
+                self.bind_all("<Button-5>", self._mouse_wheel_all, add=True)
+        else:
+            if sequence is None or sequence == "<MouseWheel>":
+                self.bind_all("<MouseWheel>", self._mouse_wheel_all, add=True)
 
     def destroy(self) -> None:
         tkinter.Frame.destroy(self)
@@ -120,13 +125,7 @@ class CTkScrollableFrame(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBa
 
     def _set_appearance_mode(self, mode: Literal["light", "dark"]) -> None:
         super()._set_appearance_mode(mode)
-
-        if self._parent_frame.cget("fg_color") == "transparent":
-            tkinter.Frame.configure(self, bg=self._apply_appearance_mode(self._parent_frame.cget("bg_color")))
-            self._parent_canvas.configure(bg=self._apply_appearance_mode(self._parent_frame.cget("bg_color")))
-        else:
-            tkinter.Frame.configure(self, bg=self._apply_appearance_mode(self._parent_frame.cget("fg_color")))
-            self._parent_canvas.configure(bg=self._apply_appearance_mode(self._parent_frame.cget("fg_color")))
+        self._draw(force_colors_update=True)
 
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
@@ -143,52 +142,44 @@ class CTkScrollableFrame(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBa
         self._parent_canvas.configure(width=self._apply_widget_scaling(self._theme_info["width"]),
                                       height=self._apply_widget_scaling(self._theme_info["height"]))
 
-    def configure(self, **kwargs: Unpack[CTkScrollableFrameArgs]) -> None:
-        if "width" in kwargs:
-            self._set_dimensions(width=kwargs.pop("width"))
+    def _draw(self, force_colors_update: bool = False) -> None:
+        if force_colors_update:
+            fg_color = self._apply_appearance_mode(self._parent_frame.get_fg_color())
 
-        if "height" in kwargs:
-            self._set_dimensions(height=kwargs.pop("height"))
+            tkinter.Frame.configure(self, bg=fg_color)
+            self._parent_canvas.configure(bg=fg_color)
+
+    def _parent_frame_configure(self, **kwargs: Unpack[CTkFrameArgs]) -> None:
+        # since this object is not a direct child of its master, when fg_color is propagated,
+        # we would interrupt the chain of invocations. To fix it, we intercept the event by
+        # replacing the original configure() method of the parent CTkFrame with this function,
+        # which calls the original method but also updates this widget and propagates the
+        # fg_color to its children
+        self._pf_original_configure(**kwargs)
+        self._create_grid()
+        self._draw(force_colors_update=True)
+        self.propagate_fg_color(self.winfo_children())
+
+    def configure(self, **kwargs: Unpack[CTkScrollableFrameArgs | CTkFrameArgs]) -> None:
+        if "width" in kwargs or "height" in kwargs:
+            self._set_dimensions(width=kwargs.pop("width", None),
+                                 height=kwargs.pop("height", None))
 
         if "frame" in kwargs:
             frame_kwargs = kwargs.pop("frame")
+            self._parent_frame.configure(**frame_kwargs)
 
-            if "corner_radius" in frame_kwargs:
-                corner_radius = frame_kwargs.pop("corner_radius")
-                self._theme_info["frame"]["corner_radius"] = corner_radius
-                self._parent_frame.configure(corner_radius=corner_radius)
-                if self._label is not None:
-                    self._label.configure(corner_radius=corner_radius)
-                self._create_grid()
-
-            if "border_width" in frame_kwargs:
-                self._theme_info["frame"]["border_width"] = frame_kwargs.pop("border_width")
-                self._parent_frame.configure(border_width=self._theme_info["frame"]["border_width"])
-                self._create_grid()
-
-            if "fg_color" in frame_kwargs:
-                self._theme_info["frame"]["fg_color"] = self._check_color_type(frame_kwargs.pop("fg_color"), transparency=True)
-                self._parent_frame.configure(fg_color=self._theme_info["frame"]["fg_color"])
-
-                if self._parent_frame.cget("fg_color") == "transparent":
-                    tkinter.Frame.configure(self, bg=self._apply_appearance_mode(self._parent_frame.cget("bg_color")))
-                    self._parent_canvas.configure(bg=self._apply_appearance_mode(self._parent_frame.cget("bg_color")))
-                else:
-                    tkinter.Frame.configure(self, bg=self._apply_appearance_mode(self._parent_frame.cget("fg_color")))
-                    self._parent_canvas.configure(bg=self._apply_appearance_mode(self._parent_frame.cget("fg_color")))
-
-                for child in self.winfo_children():
-                    if isinstance(child, CTkBaseClass):
-                        child.configure(bg_color=self._parent_frame.cget("fg_color"))
-
-            if frame_kwargs:
-                self._parent_frame.configure(**frame_kwargs)
+            if self._label is not None and "corner_radius" in frame_kwargs:
+                self._label.configure(corner_radius=frame_kwargs["corner_radius"])
 
         if "scrollbar" in kwargs:
             self._scrollbar.configure(**kwargs.pop("scrollbar"))
 
         if "label" in kwargs:
             self._label.configure(**kwargs.pop("label"))
+
+        if self._label is not None and "corner_radius" in kwargs:
+            self._label.configure(corner_radius=kwargs["corner_radius"])
 
         self._parent_frame.configure(**kwargs)
 
@@ -203,6 +194,9 @@ class CTkScrollableFrame(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBa
             return self._label.cget(attribute_name.removeprefix("label_"))
         else:
             return self._parent_frame.cget(attribute_name)
+
+    def get_fg_color(self) -> ColorType:
+        return self._parent_frame.get_fg_color()
 
     def _fit_frame_dimensions_to_canvas(self, _: tkinter.Event) -> None:
         if self._theme_info["orientation"] == "horizontal":

@@ -5,11 +5,11 @@ from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
 
-from .core_widget_classes import CTkBaseClass
+from .core_widget_classes import CTkContainer, CTkWidget
 from .core_rendering import CTkCanvas, RoundedRect
-from .font.ctk_font import CTkFont, CTkFontArgs
+from .font.ctk_font import CTkFont, FontType
 from .ctk_scrollbar import CTkScrollbar, CTkScrollbarArgs
-from .theme import ThemeManager
+from .theme import ColorType, TransparentColorType, ThemeManager
 from .utility import pop_from_dict_by_set
 
 
@@ -19,16 +19,16 @@ class CTkTextboxArgs(TypedDict, total=False):
     corner_radius: int
     border_width: int
     border_spacing: int
-    bg_color: str | tuple[str, str]
-    fg_color: str | tuple[str, str]
-    border_color: str | tuple[str, str]
-    text_color: str | tuple[str, str]
-    font: CTkFontArgs | CTkFont | tuple | str
+    bg_color: TransparentColorType
+    fg_color: TransparentColorType
+    border_color: ColorType
+    text_color: ColorType
+    font: FontType
     activate_scrollbars: bool
     scrollbar: CTkScrollbarArgs
 
 
-class CTkTextbox(CTkBaseClass):
+class CTkTextbox(CTkWidget):
     """
     Textbox with x and y scrollbars, rounded corners, and all text features of tkinter.Text widget.
     Scrollbars only appear when they are needed. Text is wrapped on line end by default,
@@ -50,7 +50,7 @@ class CTkTextbox(CTkBaseClass):
                                            "xscrollcommand", "yscrollcommand"}
 
     def __init__(self,
-                 master: tkinter.Misc,
+                 master: CTkContainer,
                  theme_key: str | None = None,
                  **kwargs: Unpack[CTkTextboxArgs]) -> None:
 
@@ -64,7 +64,6 @@ class CTkTextbox(CTkBaseClass):
                 self._theme_info[key] = self._check_color_type(self._theme_info[key],
                                                                transparency=key in ("fg_color", "bg_color"))
 
-        # transfer basic functionality (_bg_color, size, __appearance_mode, scaling) to CTkBaseClass
         super().__init__(master=master,
                          bg_color=self._theme_info["bg_color"],
                          width=self._theme_info["width"],

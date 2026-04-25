@@ -4,10 +4,10 @@ import tkinter
 from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
-from .core_widget_classes import CTkBaseClass
+from .core_widget_classes import CTkContainer, CTkWidget
 from .core_rendering import CTkCanvas, RoundedRect
-from .font.ctk_font import CTkFont, CTkFontArgs
-from .theme import ThemeManager
+from .font.ctk_font import CTkFont, FontType
+from .theme import ColorType, TransparentColorType, ThemeManager
 from .utility import pop_from_dict_by_set
 
 
@@ -16,16 +16,16 @@ class CTkEntryArgs(TypedDict, total=False):
     height: int
     corner_radius: int
     border_width: int
-    bg_color: str | tuple[str, str]
-    fg_color: str | tuple[str, str]
-    border_color: str | tuple[str, str]
-    text_color: str | tuple[str, str]
-    placeholder_text_color: str | tuple[str, str]
+    bg_color: TransparentColorType
+    fg_color: TransparentColorType
+    border_color: ColorType
+    text_color: ColorType
+    placeholder_text_color: ColorType
     placeholder_text: str
-    font: CTkFontArgs | CTkFont | tuple | str
+    font: FontType
 
 
-class CTkEntry(CTkBaseClass):
+class CTkEntry(CTkWidget):
     """
     Entry with rounded corners, border, textvariable support, focus and placeholder.
     For detailed information check out the documentation.
@@ -39,7 +39,7 @@ class CTkEntry(CTkBaseClass):
                                             "show", "takefocus", "validate", "validatecommand", "xscrollcommand"}
 
     def __init__(self,
-                 master: tkinter.Misc,
+                 master: CTkContainer,
                  theme_key: str | None = None,
                  textvariable: tkinter.StringVar | None = None,
                  state: Literal["normal", "disabled", "readonly"] = "normal",
@@ -55,7 +55,6 @@ class CTkEntry(CTkBaseClass):
                 self._theme_info[key] = self._check_color_type(self._theme_info[key],
                                                                transparency=key in ("fg_color", "bg_color"))
 
-        # transfer basic functionality (bg_color, size, appearance_mode, scaling) to CTkBaseClass
         super().__init__(master=master,
                          bg_color=self._theme_info["bg_color"],
                          width=self._theme_info["width"],
@@ -239,7 +238,7 @@ class CTkEntry(CTkBaseClass):
                 self._entry.configure(show=kwargs.pop("show"))
 
         self._entry.configure(**pop_from_dict_by_set(kwargs, self._valid_tk_entry_attributes))  # configure Tkinter.Entry
-        super().configure(require_redraw=require_redraw, **kwargs)  # configure CTkBaseClass
+        super().configure(require_redraw=require_redraw, **kwargs)
 
     def cget(self, attribute_name: str) -> Any:
         if attribute_name == "font":
@@ -253,7 +252,7 @@ class CTkEntry(CTkBaseClass):
         elif attribute_name in self._valid_tk_entry_attributes:
             return self._entry.cget(attribute_name)  # cget of tkinter.Entry
         else:
-            return super().cget(attribute_name)  # cget of CTkBaseClass
+            return super().cget(attribute_name)
 
     def bind(self,
              sequence: str | None = None,

@@ -6,9 +6,10 @@ import warnings
 from typing import Any, Callable, TYPE_CHECKING
 from typing_extensions import Literal, TypedDict
 
-from .... import windows  # import windows for isinstance checks
 from ..appearance_mode import CTkAppearanceModeBaseClass
 from ..scaling import CTkScalingBaseClass
+from .ctk_container import CTkContainer
+from ..theme import ColorType, TransparentColorType
 from ..image import CTkImage
 from ..utility import pop_from_dict_by_set, check_kwargs_empty
 
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
     from PIL import ImageTk
 
 
-class CTkBaseClass(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
+class CTkWidget(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
     """ Base class of every CTk widget, handles the dimensions, bg_color,
         appearance_mode changes, scaling, bg changes of master if master is not a CTk widget """
 
@@ -26,11 +27,11 @@ class CTkBaseClass(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClas
     _cursor_manipulation_enabled: bool = True
 
     def __init__(self,
-                 master: tkinter.Misc,
+                 master: CTkContainer,
                  width: int = 0,
                  height: int = 0,
 
-                 bg_color: str | tuple[str, str] = "transparent",
+                 bg_color: TransparentColorType = "transparent",
                  **kwargs: Any) -> None:
 
         # call init methods of super classes
@@ -57,8 +58,10 @@ class CTkBaseClass(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClas
             kwargs: dict
         self._last_geometry_manager_call: GeometryCallDict | None = None
 
-        # background color
-        self._bg_color: str | tuple[str, str] = self._detect_color_of_master() if bg_color == "transparent" else self._check_color_type(bg_color, transparency=True)
+        # background color: it is used to fill the whole area of the widget.
+        # if requested color is "transparent", it is set equal to the fg_color of the parent widget,
+        # so that this widget seems to be transparent
+        self._bg_color: ColorType = self._detect_color_of_master() if bg_color == "transparent" else self._check_color_type(bg_color)
 
         # set bg color of tkinter.Frame
         super().configure(bg=self._apply_appearance_mode(self._bg_color))
@@ -67,7 +70,8 @@ class CTkBaseClass(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClas
         super().bind('<Configure>', self._update_dimensions_event)
 
         # overwrite configure methods of master when master is tkinter widget, so that bg changes get applied on child CTk widget as well
-        if isinstance(self.master, (tkinter.Tk, tkinter.Toplevel, tkinter.Frame, tkinter.LabelFrame, ttk.Frame, ttk.LabelFrame, ttk.Notebook)) and not isinstance(self.master, (CTkBaseClass, CTkAppearanceModeBaseClass)):
+        if (isinstance(self.master, (tkinter.Tk, tkinter.Toplevel, tkinter.Frame, tkinter.LabelFrame, ttk.Frame, ttk.LabelFrame, ttk.Notebook)) and
+            not isinstance(self.master, (CTkContainer, CTkWidget))):
             master_old_configure = self.master.config
 
             def new_configure(*args: Any, **kwargs: Any) -> None:
@@ -120,7 +124,7 @@ class CTkBaseClass(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClas
             if new_bg_color == "transparent":
                 self._bg_color = self._detect_color_of_master()
             else:
-                self._bg_color = self._check_color_type(new_bg_color)
+                self._bg_color = new_bg_color
             require_redraw = True
 
         super().configure(**pop_from_dict_by_set(kwargs, self._valid_tk_frame_attributes))  # configure tkinter.Frame
@@ -163,34 +167,22 @@ class CTkBaseClass(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClas
 
             self._draw()  # faster drawing without color changes
 
-    def _detect_color_of_master(self, widget: tkinter.Misc | None = None) -> str | tuple[str, str]:
+    def _detect_color_of_master(self) -> ColorType:
         """ detect foreground color of master widget for bg_color and transparent color """
 
-        if widget is None:
-            widget = self.master
+        if isinstance(self.master, CTkContainer):
+            return self.master.get_fg_color()
 
-        if isinstance(widget, (CTkBaseClass, windows.CTk, windows.CTkToplevel, windows.widgets.ctk_scrollable_frame.CTkScrollableFrame)):
-            fg_color = widget.cget("fg_color")
-            if fg_color is not None and fg_color != "transparent":
-                return fg_color
-
-            elif isinstance(widget, windows.widgets.ctk_scrollable_frame.CTkScrollableFrame):
-                return self._detect_color_of_master(widget.master.master.master)
-
-            # if fg_color of master is None, try to retrieve fg_color from master of master
-            elif hasattr(widget, "master"):
-                return self._detect_color_of_master(widget.master)
-
-        elif isinstance(widget, (ttk.Frame, ttk.LabelFrame, ttk.Notebook, ttk.Label)):  # master is ttk widget
+        elif isinstance(self.master, (ttk.Frame, ttk.LabelFrame, ttk.Notebook, ttk.Label)):  # master is ttk widget
             try:
                 ttk_style = ttk.Style()
-                return ttk_style.lookup(widget.winfo_class(), 'background')
+                return ttk_style.lookup(self.master.winfo_class(), 'background')
             except Exception:
                 pass
 
         else:  # master is normal tkinter widget
             try:
-                return widget.cget("bg")  # try to get bg color by .cget() method
+                return self.master.cget("bg")  # try to get bg color by .cget() method
             except Exception:
                 pass
         return "#FFFFFF", "#000000"

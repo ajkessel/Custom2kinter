@@ -5,9 +5,9 @@ import math
 from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
-from .core_widget_classes import CTkBaseClass
+from .core_widget_classes import CTkContainer, CTkWidget
 from .core_rendering import CTkCanvas, RoundedRect, ProgressBar
-from .theme import ThemeManager
+from .theme import ColorType, TransparentColorType, ThemeManager
 
 
 class CTkProgressBarArgs(TypedDict, total=False):
@@ -16,13 +16,13 @@ class CTkProgressBarArgs(TypedDict, total=False):
     lenght: int
     corner_radius: int
     border_width: int
-    bg_color: str | tuple[str, str]
-    fg_color: str | tuple[str, str]
-    border_color: str | tuple[str, str]
-    progress_color: str | tuple[str, str]
+    bg_color: TransparentColorType
+    fg_color: ColorType
+    border_color: ColorType
+    progress_color: ColorType
 
 
-class CTkProgressBar(CTkBaseClass):
+class CTkProgressBar(CTkWidget):
     """
     Progressbar with rounded corners, border, variable support,
     indeterminate mode, vertical orientation.
@@ -30,7 +30,7 @@ class CTkProgressBar(CTkBaseClass):
     """
 
     def __init__(self,
-                 master: tkinter.Misc,
+                 master: CTkContainer,
                  theme_key: str | None = None,
                  mode: Literal["determinate", "indeterminate"] = "determinate",
                  determinate_speed: float = 1.0,
@@ -54,7 +54,6 @@ class CTkProgressBar(CTkBaseClass):
             width = self._theme_info["lenght"]
             height = self._theme_info["thickness"]
 
-        # transfer basic functionality (_bg_color, size, __appearance_mode, scaling) to CTkBaseClass
         super().__init__(master=master,
                          bg_color=self._theme_info["bg_color"],
                          width=width,

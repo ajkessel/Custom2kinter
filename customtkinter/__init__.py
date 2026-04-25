@@ -12,6 +12,8 @@ from .windows.widgets.appearance_mode import AppearanceModeTracker
 from .windows.widgets.font import FontManager
 from .windows.widgets.scaling import ScalingTracker
 from .windows.widgets.theme import ThemeManager
+from .windows.widgets.theme import ColorType
+from .windows.widgets.theme import TransparentColorType
 from .windows.widgets.core_rendering.draw_engine import DRAWING_METHODS
 from .windows.widgets.core_rendering.draw_engine import Arrow
 from .windows.widgets.core_rendering.draw_engine import BackgroundCorners
@@ -24,7 +26,8 @@ from .windows.widgets.core_rendering.draw_engine import Slider
 
 # import base widgets
 from .windows.widgets.core_rendering import CTkCanvas
-from .windows.widgets.core_widget_classes import CTkBaseClass
+from .windows.widgets.core_widget_classes import CTkContainer
+from .windows.widgets.core_widget_classes import CTkWidget
 
 # import widgets
 from .windows.widgets import CTkButton
@@ -51,6 +54,7 @@ from .windows import CTkInputDialog
 
 # import font classes
 from .windows.widgets.font import CTkFont
+from .windows.widgets.font import FontType
 
 # import image classes
 from .windows.widgets.image import CTkImage

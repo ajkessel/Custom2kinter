@@ -4,10 +4,15 @@ import sys
 import os
 import pathlib
 import json
-from typing import Any
-from typing_extensions import Literal, TypedDict, Unpack
+from typing import Any, Tuple, Union
+from typing_extensions import Literal, TypeAlias, TypedDict, Unpack
 
 from ..utility import deep_update
+
+
+#old syntax for retrocompatibility reasons
+ColorType: TypeAlias = Union[Literal["transparent"], str, Tuple[str, str]]
+TransparentColorType: TypeAlias = Union[Literal["transparent"], ColorType]
 
 
 class ThemeInfo(TypedDict, total=False):
@@ -29,24 +34,24 @@ class ThemeInfo(TypedDict, total=False):
     border_width_checked: int
     border_width_unchecked: int
     border_spacing: int
-    bg_color: str | tuple[str, str]
-    fg_color: str | tuple[str, str]
-    fg_color_checked: str | tuple[str, str]
-    fg_color_unchecked: str | tuple[str, str]
-    top_fg_color: str | tuple[str, str]
-    border_color: str | tuple[str, str]
-    checkmark_color: str | tuple[str, str]
-    button_color: str | tuple[str, str]
-    button_hover_color: str | tuple[str, str]
-    placeholder_text_color: str | tuple[str, str]
-    progress_color: str | tuple[str, str]
-    selected_color: str | tuple[str, str]
-    unselected_color: str | tuple[str, str]
-    selected_hover_color: str | tuple[str, str]
-    unselected_hover_color: str | tuple[str, str]
-    text_color: str | tuple[str, str]
-    text_color_disabled: str | tuple[str, str]
-    hover_color: str | tuple[str, str]
+    bg_color: TransparentColorType
+    fg_color: TransparentColorType
+    fg_color_checked: ColorType
+    fg_color_unchecked: ColorType
+    top_fg_color: ColorType
+    border_color: TransparentColorType
+    checkmark_color: ColorType
+    button_color: ColorType
+    button_hover_color: ColorType
+    progress_color: TransparentColorType
+    selected_color: ColorType
+    unselected_color: ColorType
+    selected_hover_color: ColorType
+    unselected_hover_color: ColorType
+    hover_color: ColorType
+    text_color: ColorType
+    text_color_disabled: ColorType
+    placeholder_text_color: ColorType
     hover: bool
     dynamic_resizing: bool
     activate_scrollbars: bool

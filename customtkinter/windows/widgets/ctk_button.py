@@ -5,10 +5,10 @@ import sys
 from typing import Any, Callable, TYPE_CHECKING
 from typing_extensions import Literal, TypedDict, Unpack
 
-from .core_widget_classes import CTkBaseClass
+from .core_widget_classes import CTkContainer, CTkWidget
 from .core_rendering import CTkCanvas, BackgroundCorners, RoundedRect
-from .theme import ThemeManager
-from .font.ctk_font import CTkFont, CTkFontArgs
+from .theme import ColorType, TransparentColorType, ThemeManager
+from .font.ctk_font import CTkFont, FontType
 from .image import CTkImage
 
 if TYPE_CHECKING:
@@ -21,22 +21,22 @@ class CTkButtonArgs(TypedDict, total=False):
     corner_radius: int
     border_width: int
     border_spacing: int
-    bg_color: str | tuple[str, str]
-    fg_color: str | tuple[str, str]
-    border_color: str | tuple[str, str]
-    text_color: str | tuple[str, str]
-    text_color_disabled: str | tuple[str, str]
-    hover_color: str | tuple[str, str]
+    bg_color: TransparentColorType
+    fg_color: TransparentColorType
+    border_color: ColorType
+    hover_color: ColorType
+    text_color: ColorType
+    text_color_disabled: ColorType
     hover: bool
     round_width_to_even_numbers: bool
     round_height_to_even_numbers: bool
     text: str
-    font: CTkFontArgs | CTkFont | tuple | str
+    font: FontType
     anchor: str  #center or combination of n, e, s, w
     compound: Literal["left", "right", "top", "bottom"]
 
 
-class CTkButton(CTkBaseClass):
+class CTkButton(CTkWidget):
     """
     Button with rounded corners, border, hover effect, image support, click command and textvariable.
     For detailed information check out the documentation.
@@ -45,13 +45,13 @@ class CTkButton(CTkBaseClass):
     _image_label_spacing: int = 6
 
     def __init__(self,
-                 master: tkinter.Misc,
+                 master: CTkContainer,
                  theme_key: str | None = None,
                  textvariable: tkinter.Variable | None = None,
                  image: CTkImage | ImageTk.PhotoImage | tkinter.PhotoImage | None = None,
                  state: Literal["normal", "disabled"] = "normal",
                  command: Callable[[], None] | None = None,
-                 background_corner_colors: tuple[str | tuple[str, str], ...] | None = None,
+                 background_corner_colors: tuple[ColorType, ...] | None = None,
                  **kwargs: Unpack[CTkButtonArgs]) -> None:
 
         self._theme_info: CTkButtonArgs = ThemeManager.get_info("CTkButton", theme_key, **kwargs)
@@ -62,7 +62,6 @@ class CTkButton(CTkBaseClass):
                 self._theme_info[key] = self._check_color_type(self._theme_info[key],
                                                                transparency=key in ("fg_color", "bg_color"))
 
-        # transfer basic functionality (_bg_color, size, __appearance_mode, scaling) to CTkBaseClass
         super().__init__(master=master,
                          bg_color=self._theme_info["bg_color"],
                          width=self._theme_info["width"],
@@ -71,7 +70,7 @@ class CTkButton(CTkBaseClass):
         self._theme_info["corner_radius"] = min(self._theme_info["corner_radius"], round(self._current_height / 2))
 
         # rendering options
-        self._background_corner_colors: tuple[str | tuple[str, str], ...] | None = background_corner_colors
+        self._background_corner_colors: tuple[ColorType, ...] | None = background_corner_colors
 
         # text and font
         self._textvariable: tkinter.Variable | None = textvariable

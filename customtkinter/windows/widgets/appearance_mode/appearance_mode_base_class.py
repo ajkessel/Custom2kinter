@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing_extensions import Literal
 
 from .appearance_mode_tracker import AppearanceModeTracker
+from ..theme import TransparentColorType
 
 
 class CTkAppearanceModeBaseClass:
@@ -35,7 +36,7 @@ class CTkAppearanceModeBaseClass:
         else:
             return "dark"
 
-    def _apply_appearance_mode(self, color: str | tuple[str, str] | list[str]) -> str:
+    def _apply_appearance_mode(self, color: TransparentColorType) -> str:
         """
         color can be either a single hex color string or a color name or it can be a
         tuple color with (light_color, dark_color). The functions returns
@@ -48,8 +49,8 @@ class CTkAppearanceModeBaseClass:
             return color
 
     @staticmethod
-    def _check_color_type(color: str | tuple[str, str] | list[str],
-                          transparency: bool = False) -> str | tuple[str, str]:
+    def _check_color_type(color: TransparentColorType | list[str],
+                          transparency: bool = False) -> TransparentColorType:
         if color is None:
             raise ValueError("color is None, for transparency set color='transparent'")
         elif isinstance(color, (tuple, list)) and (color[0] == "transparent" or color[1] == "transparent"):

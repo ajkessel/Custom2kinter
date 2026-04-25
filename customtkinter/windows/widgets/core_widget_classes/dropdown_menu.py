@@ -8,17 +8,17 @@ from typing_extensions import Literal, TypedDict, Unpack
 
 from ..appearance_mode import CTkAppearanceModeBaseClass
 from ..scaling import CTkScalingBaseClass
-from ..theme import ThemeManager
-from ..font.ctk_font import CTkFont, CTkFontArgs
+from ..theme import ColorType, ThemeManager
+from ..font.ctk_font import CTkFont, FontType
 from ..utility import pop_from_dict_by_set
 
 
 class DropdownMenuArgs(TypedDict, total=False):
-    fg_color: str | tuple[str, str]
-    hover_color: str | tuple[str, str]
-    text_color: str | tuple[str, str]
+    fg_color: ColorType
+    hover_color: ColorType
+    text_color: ColorType
     min_character_width: int
-    font: CTkFontArgs | CTkFont | tuple | str
+    font: FontType
 
 
 class DropdownMenu(tkinter.Menu, CTkAppearanceModeBaseClass, CTkScalingBaseClass):

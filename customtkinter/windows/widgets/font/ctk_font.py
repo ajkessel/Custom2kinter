@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from tkinter.font import Font
 import copy
-from typing import Any, Callable
-from typing_extensions import Literal, TypedDict, Unpack
+from typing import Any, Callable, Tuple, Union
+from typing_extensions import Literal, TypeAlias, TypedDict, Unpack
 
 from ..theme import ThemeManager
 
@@ -51,7 +51,7 @@ class CTkFont(Font):
         self._size_configure_callback_list: list[Callable[[], None]] = []
 
     @classmethod
-    def from_parameter(cls, parameter: CTkFont | CTkFontArgs | tuple | str) -> CTkFont:
+    def from_parameter(cls, parameter: FontType) -> CTkFont:
         if isinstance(parameter, CTkFont):
             return parameter
 
@@ -140,3 +140,7 @@ class CTkFont(Font):
         underline = " underline" if self._theme_info["underline"] else ""
         overstrike = " overstrike" if self._theme_info["overstrike"] else ""
         return f"{weight} {slant}{underline}{overstrike}"
+
+
+#old syntax for retrocompatibility reasons
+FontType: TypeAlias = Union[CTkFontArgs, CTkFont, Tuple, str]

@@ -4,9 +4,9 @@ import tkinter
 from typing import Any, Callable
 from typing_extensions import TypedDict, Unpack
 
-from .core_widget_classes import CTkBaseClass
+from .core_widget_classes import CTkContainer, CTkWidget
 from .core_rendering import CTkCanvas, BackgroundCorners, RoundedRect
-from .theme import ThemeManager
+from .theme import ColorType, TransparentColorType, ThemeManager
 
 
 class CTkFrameArgs(TypedDict, total=False):
@@ -14,13 +14,13 @@ class CTkFrameArgs(TypedDict, total=False):
     height: int
     corner_radius: int
     border_width: int
-    bg_color: str | tuple[str, str]
-    fg_color: str | tuple[str, str]
-    top_fg_color: str | tuple[str, str]
-    border_color: str | tuple[str, str]
+    bg_color: TransparentColorType
+    fg_color: TransparentColorType
+    top_fg_color: ColorType
+    border_color: ColorType
 
 
-class CTkFrame(CTkBaseClass):
+class CTkFrame(CTkWidget, CTkContainer):
     """
     Frame with rounded corners and border.
     Default foreground colors are set according to theme.
@@ -29,9 +29,9 @@ class CTkFrame(CTkBaseClass):
     """
 
     def __init__(self,
-                 master: tkinter.Misc,
+                 master: CTkContainer,
                  theme_key: str | None = None,
-                 background_corner_colors: tuple[str | tuple[str, str], ...] | None = None,
+                 background_corner_colors: tuple[ColorType, ...] | None = None,
                  **kwargs: Unpack[CTkFrameArgs]) -> None:
 
         self._theme_info: CTkFrameArgs = ThemeManager.get_info("CTkFrame", theme_key, **kwargs)
@@ -42,20 +42,22 @@ class CTkFrame(CTkBaseClass):
                 self._theme_info[key] = self._check_color_type(self._theme_info[key],
                                                                transparency=key in ("fg_color", "bg_color"))
 
-        # transfer basic functionality (_bg_color, size, __appearance_mode, scaling) to CTkBaseClass
-        super().__init__(master=master,
-                         bg_color=self._theme_info["bg_color"],
-                         width=self._theme_info["width"],
-                         height=self._theme_info["height"])
+        CTkWidget.__init__(self,
+                           master=master,
+                           bg_color=self._theme_info["bg_color"],
+                           width=self._theme_info["width"],
+                           height=self._theme_info["height"])
+        CTkContainer.__init__(self,
+                              fg_color=self._theme_info["fg_color"])
 
-        # determine fg_color of frame: use "top" one if not forced and parent frame has the same fg_color
-        self._fg_color: str | tuple[str, str] = self._theme_info["fg_color"]
+        # update fg_color: use "top" version if not forced and parent frame has the same fg_color
+        # (if _fg_color is "transparent" we don't change it)
         if (("fg_color" not in kwargs or "top_fg_color" in kwargs) and
-            isinstance(self.master, CTkFrame) and
-            self.master._fg_color == self._fg_color):
+            isinstance(self.master, CTkContainer) and
+            self.master.get_fg_color() == self._fg_color):
             self._fg_color = self._theme_info["top_fg_color"]
 
-        self._background_corner_colors: tuple[str | tuple[str, str], ...] | None = background_corner_colors
+        self._background_corner_colors: tuple[ColorType, ...] | None = background_corner_colors
 
         self._canvas = CTkCanvas(master=self,
                                  highlightthickness=0,
@@ -122,12 +124,11 @@ class CTkFrame(CTkBaseClass):
 
             self._canvas.configure(bg=self._apply_appearance_mode(self._bg_color))
             self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
-            if self._fg_color == "transparent":
-                self._rounded_rect.set_main_color(self._apply_appearance_mode(self._bg_color))
-            else:
-                self._rounded_rect.set_main_color(self._apply_appearance_mode(self._fg_color))
+            self._rounded_rect.set_main_color(self._apply_appearance_mode(self.get_fg_color()))
 
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkFrameArgs]) -> None:
+        propagate_required = False
+
         if "corner_radius" in kwargs:
             self._theme_info["corner_radius"] = kwargs.pop("corner_radius")
             require_redraw = True
@@ -139,18 +140,12 @@ class CTkFrame(CTkBaseClass):
         if "fg_color" in kwargs:
             self._fg_color = self._check_color_type(kwargs.pop("fg_color"), transparency=True)
             require_redraw = True
-
-            # check if CTk widgets are children of the frame and change their bg_color to new frame fg_color
-            for child in self.winfo_children():
-                if isinstance(child, CTkBaseClass):
-                    child.configure(bg_color=self._fg_color)
+            propagate_required = True
 
         if "bg_color" in kwargs:
-            # pass bg_color change to children if fg_color is "transparent"
+            #only if fg_color is transparent, bg_color is actually used by children widgets
             if self._fg_color == "transparent":
-                for child in self.winfo_children():
-                    if isinstance(child, CTkBaseClass):
-                        child.configure(bg_color=self._fg_color)
+                propagate_required = True
 
         if "border_color" in kwargs:
             self._theme_info["border_color"] = self._check_color_type(kwargs.pop("border_color"))
@@ -161,16 +156,22 @@ class CTkFrame(CTkBaseClass):
             require_redraw = True
 
         super().configure(require_redraw=require_redraw, **kwargs)
+        if propagate_required:
+            self.propagate_fg_color(self.winfo_children())
 
     def cget(self, attribute_name: str) -> Any:
-        if attribute_name == "fg_color":
-            return self._fg_color
-        elif attribute_name == "background_corner_colors":
+        if attribute_name == "background_corner_colors":
             return self._background_corner_colors
         elif attribute_name in self._theme_info:
             return self._theme_info[attribute_name]
         else:
             return super().cget(attribute_name)
+
+    def get_fg_color(self) -> ColorType:
+        if self._fg_color == "transparent":
+            return self._bg_color
+        else:
+            return self._fg_color
 
     def bind(self,
              sequence: str | None = None,

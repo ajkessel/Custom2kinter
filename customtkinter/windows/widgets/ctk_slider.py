@@ -5,9 +5,9 @@ import sys
 from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
-from .core_widget_classes import CTkBaseClass
+from .core_widget_classes import CTkContainer, CTkWidget
 from .core_rendering import CTkCanvas, RoundedRect, ProgressBar, Slider
-from .theme import ThemeManager
+from .theme import ColorType, TransparentColorType, ThemeManager
 
 
 class CTkSliderArgs(TypedDict, total=False):
@@ -18,23 +18,23 @@ class CTkSliderArgs(TypedDict, total=False):
     button_corner_radius: int
     corner_radius: int
     border_width: int
-    bg_color: str | tuple[str, str]
-    fg_color: str | tuple[str, str]
-    button_color: str | tuple[str, str]
-    button_hover_color: str | tuple[str, str]
-    border_color: str | tuple[str, str]
-    progress_color: str | tuple[str, str]
+    bg_color: TransparentColorType
+    fg_color: ColorType
+    button_color: ColorType
+    button_hover_color: ColorType
+    border_color: TransparentColorType
+    progress_color: TransparentColorType
     hover: bool
 
 
-class CTkSlider(CTkBaseClass):
+class CTkSlider(CTkWidget):
     """
     Slider with rounded corners, border, number of steps, variable support, vertical orientation.
     For detailed information check out the documentation.
     """
 
     def __init__(self,
-                 master: tkinter.Misc,
+                 master: CTkContainer,
                  theme_key: str | None = None,
                  state: Literal["normal", "disabled"] = "normal",
                  from_: int | float = 0.0,
@@ -64,7 +64,6 @@ class CTkSlider(CTkBaseClass):
             width = self._theme_info["lenght"]
             height = self._theme_info["thickness"]
 
-        # transfer basic functionality (_bg_color, size, __appearance_mode, scaling) to CTkBaseClass
         super().__init__(master=master,
                          bg_color=self._theme_info["bg_color"],
                          width=width,

@@ -5,10 +5,10 @@ import sys
 from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
-from .core_widget_classes import CTkBaseClass
+from .core_widget_classes import CTkContainer, CTkWidget
 from .core_rendering import CTkCanvas, RoundedRect, Checkmark
-from .font.ctk_font import CTkFont, CTkFontArgs
-from .theme import ThemeManager
+from .font.ctk_font import CTkFont, FontType
+from .theme import ColorType, TransparentColorType, ThemeManager
 
 
 class CTkCheckBoxArgs(TypedDict, total=False):
@@ -18,26 +18,26 @@ class CTkCheckBoxArgs(TypedDict, total=False):
     checkbox_height: int
     corner_radius: int
     border_width: int
-    bg_color: str | tuple[str, str]
-    fg_color: str | tuple[str, str]
-    border_color: str | tuple[str, str]
-    checkmark_color: str | tuple[str, str]
-    text_color: str | tuple[str, str]
-    text_color_disabled: str | tuple[str, str]
-    hover_color: str | tuple[str, str]
+    bg_color: TransparentColorType
+    fg_color: ColorType
+    border_color: ColorType
+    checkmark_color: ColorType
+    hover_color: ColorType
+    text_color: ColorType
+    text_color_disabled: ColorType
     hover: bool
     text: str
-    font: CTkFontArgs | CTkFont | tuple | str
+    font: FontType
 
 
-class CTkCheckBox(CTkBaseClass):
+class CTkCheckBox(CTkWidget):
     """
     Checkbox with rounded corners, border, variable support and hover effect.
     For detailed information check out the documentation.
     """
 
     def __init__(self,
-                 master: tkinter.Misc,
+                 master: CTkContainer,
                  theme_key: str | None = None,
                  textvariable: tkinter.Variable | None = None,
                  state: Literal["normal", "disabled"] = "normal",
@@ -55,7 +55,6 @@ class CTkCheckBox(CTkBaseClass):
                 self._theme_info[key] = self._check_color_type(self._theme_info[key],
                                                                transparency=key == "bg_color")
 
-        # transfer basic functionality (_bg_color, size, __appearance_mode, scaling) to CTkBaseClass
         super().__init__(master=master,
                          bg_color=self._theme_info["bg_color"],
                          width=self._theme_info["width"],

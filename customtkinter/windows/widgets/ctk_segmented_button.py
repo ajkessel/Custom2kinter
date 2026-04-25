@@ -5,8 +5,9 @@ import copy
 from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
-from .font.ctk_font import CTkFont, CTkFontArgs
-from .theme import ThemeManager
+from .core_widget_classes import CTkContainer
+from .font.ctk_font import FontType
+from .theme import ColorType, TransparentColorType, ThemeManager
 from .utility import check_kwargs_empty
 from .ctk_frame import CTkFrame
 from .ctk_button import CTkButton
@@ -18,16 +19,16 @@ class CTkSegmentedButtonArgs(TypedDict, total=False):
     height: int
     corner_radius: int
     border_width: int
-    bg_color: str | tuple[str, str]
-    fg_color: str | tuple[str, str]
-    selected_color: str | tuple[str, str]
-    unselected_color: str | tuple[str, str]
-    selected_hover_color: str | tuple[str, str]
-    unselected_hover_color: str | tuple[str, str]
-    text_color: str | tuple[str, str]
-    text_color_disabled: str | tuple[str, str]
+    bg_color: TransparentColorType
+    fg_color: ColorType
+    selected_color: ColorType
+    unselected_color: ColorType
+    selected_hover_color: ColorType
+    unselected_hover_color: ColorType
+    text_color: ColorType
+    text_color_disabled: ColorType
     dynamic_resizing: bool
-    font: CTkFontArgs | CTkFont | tuple | str
+    font: FontType
 
 
 class CTkSegmentedButton(CTkFrame):
@@ -37,13 +38,13 @@ class CTkSegmentedButton(CTkFrame):
     """
 
     def __init__(self,
-                 master: tkinter.Misc,
+                 master: CTkContainer,
                  theme_key: str | None = None,
                  state: Literal["normal", "disabled"] = "normal",
                  values: list[str] | None = None,
                  variable: tkinter.StringVar | None = None,
                  command: Callable[[str], None] | None = None,
-                 background_corner_colors: tuple[str | tuple[str, str], ...] | None = None,
+                 background_corner_colors: tuple[ColorType, ...] | None = None,
                  **kwargs: Unpack[CTkSegmentedButtonArgs]) -> None:
 
         self._theme_sb_info: CTkSegmentedButtonArgs = ThemeManager.get_info("CTkSegmentedButton", theme_key, **kwargs)
@@ -62,7 +63,7 @@ class CTkSegmentedButton(CTkFrame):
                          corner_radius=self._theme_sb_info["corner_radius"])
 
         # rendering options
-        self._background_corner_colors: tuple[str | tuple[str, str], ...] | None = background_corner_colors
+        self._background_corner_colors: tuple[ColorType, ...] | None = background_corner_colors
 
         #functionality
         self._state: Literal["normal", "disabled"] = state

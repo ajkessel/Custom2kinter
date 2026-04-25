@@ -1,4 +1,6 @@
 from .theme_manager import ThemeManager
+from .theme_manager import ColorType
+from .theme_manager import TransparentColorType
 
 # load default blue theme
 try:

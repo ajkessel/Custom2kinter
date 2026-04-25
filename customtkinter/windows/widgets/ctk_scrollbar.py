@@ -5,9 +5,9 @@ import sys
 from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
-from .core_widget_classes import CTkBaseClass
+from .core_widget_classes import CTkContainer, CTkWidget
 from .core_rendering import CTkCanvas, RoundedRect, Slider
-from .theme import ThemeManager
+from .theme import ColorType, TransparentColorType, ThemeManager
 
 
 class CTkScrollbarArgs(TypedDict, total=False):
@@ -17,15 +17,15 @@ class CTkScrollbarArgs(TypedDict, total=False):
     minimum_pixel_length: int
     corner_radius: int
     border_width: int
-    bg_color: str | tuple[str, str]
-    fg_color: str | tuple[str, str]
-    button_color: str | tuple[str, str]
-    button_hover_color: str | tuple[str, str]
-    border_color: str | tuple[str, str]
+    bg_color: TransparentColorType
+    fg_color: TransparentColorType
+    button_color: ColorType
+    button_hover_color: ColorType
+    border_color: TransparentColorType
     hover: bool
 
 
-class CTkScrollbar(CTkBaseClass):
+class CTkScrollbar(CTkWidget):
     """
     Scrollbar with rounded corners, configurable spacing.
     Connect to scrollable widget by passing .set() method and set command attribute.
@@ -33,7 +33,7 @@ class CTkScrollbar(CTkBaseClass):
     """
 
     def __init__(self,
-                 master: tkinter.Misc,
+                 master: CTkContainer,
                  theme_key: str | None = None,
                  command: Callable[[str, int | float, str], None] | None = None,
                  **kwargs: Unpack[CTkScrollbarArgs]) -> None:
@@ -54,7 +54,6 @@ class CTkScrollbar(CTkBaseClass):
             width = self._theme_info["lenght"]
             height = self._theme_info["thickness"]
 
-        # transfer basic functionality (_bg_color, size, __appearance_mode, scaling) to CTkBaseClass
         super().__init__(master=master,
                          bg_color=self._theme_info["bg_color"],
                          width=width,

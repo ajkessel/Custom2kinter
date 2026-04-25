@@ -4,10 +4,10 @@ import tkinter
 from typing import Any, Callable, TYPE_CHECKING
 from typing_extensions import Literal, TypedDict, Unpack
 
-from .core_widget_classes import CTkBaseClass
+from .core_widget_classes import CTkContainer, CTkWidget
 from .core_rendering import CTkCanvas, RoundedRect
-from .font.ctk_font import CTkFont, CTkFontArgs
-from .theme import ThemeManager
+from .font.ctk_font import CTkFont, FontType
+from .theme import ColorType, TransparentColorType, ThemeManager
 from .image import CTkImage
 from .utility import pop_from_dict_by_set
 
@@ -20,19 +20,19 @@ class CTkLabelArgs(TypedDict, total=False):
     height: int
     corner_radius: int
     border_width: int
-    bg_color: str | tuple[str, str]
-    fg_color: str | tuple[str, str]
-    border_color: str | tuple[str, str]
-    text_color: str | tuple[str, str]
-    text_color_disabled: str | tuple[str, str]
+    bg_color: TransparentColorType
+    fg_color: TransparentColorType
+    border_color: ColorType
+    text_color: ColorType
+    text_color_disabled: ColorType
     text: str
-    font: CTkFontArgs | CTkFont | tuple | str
+    font: FontType
     anchor: str  #center or combination of n, e, s, w
     compound: Literal["center", "left", "right", "top", "bottom", "none"]
     wraplength: int
 
 
-class CTkLabel(CTkBaseClass):
+class CTkLabel(CTkWidget):
     """
     Label with rounded corners. Default is fg_color=None (transparent fg_color).
     For detailed information check out the documentation.
@@ -45,7 +45,7 @@ class CTkLabel(CTkBaseClass):
                                             "textvariable", "state", "takefocus", "underline"}
 
     def __init__(self,
-                 master: tkinter.Misc,
+                 master: CTkContainer,
                  theme_key: str | None = None,
                  image: CTkImage | ImageTk.PhotoImage | tkinter.PhotoImage | None = None,
                  **kwargs: Unpack[CTkLabelArgs]) -> None:
@@ -60,7 +60,6 @@ class CTkLabel(CTkBaseClass):
                 self._theme_info[key] = self._check_color_type(self._theme_info[key],
                                                                transparency=key in ("fg_color", "bg_color"))
 
-        # transfer basic functionality (_bg_color, size, __appearance_mode, scaling) to CTkBaseClass
         super().__init__(master=master,
                          bg_color=self._theme_info["bg_color"],
                          width=self._theme_info["width"],
@@ -234,7 +233,7 @@ class CTkLabel(CTkBaseClass):
             self._label.configure(wraplength=self._apply_widget_scaling(self._theme_info["wraplength"]))
 
         self._label.configure(**pop_from_dict_by_set(kwargs, self._valid_tk_label_attributes))  # configure tkinter.Label
-        super().configure(require_redraw=require_redraw, **kwargs)  # configure CTkBaseClass
+        super().configure(require_redraw=require_redraw, **kwargs)
 
     def cget(self, attribute_name: str) -> Any:
         if attribute_name == "font":
@@ -246,7 +245,7 @@ class CTkLabel(CTkBaseClass):
         elif attribute_name in self._valid_tk_label_attributes:
             return self._label.cget(attribute_name)  # cget of tkinter.Label
         else:
-            return super().cget(attribute_name)  # cget of CTkBaseClass
+            return super().cget(attribute_name)
 
     def bind(self,
              sequence: str | None = None,

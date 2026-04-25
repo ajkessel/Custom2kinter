@@ -7,16 +7,16 @@ from .ctk_toplevel import CTkToplevel
 from .widgets import CTkLabel
 from .widgets.ctk_button import CTkButton, CTkButtonArgs
 from .widgets.ctk_entry import CTkEntry, CTkEntryArgs
-from .widgets.font.ctk_font import CTkFont, CTkFontArgs
-from .widgets.theme import ThemeManager
+from .widgets.font.ctk_font import CTkFont, FontType
+from .widgets.theme import ColorType, ThemeManager
 
 
 class CTkInputDialogArgs(TypedDict, total=False):
-    fg_color: str | tuple[str, str]
-    text_color: str | tuple[str, str]
+    fg_color: ColorType
+    text_color: ColorType
     title: str
     text: str
-    font: CTkFontArgs | CTkFont | tuple | str
+    font: FontType
     button: CTkButtonArgs
     entry: CTkEntryArgs
 
