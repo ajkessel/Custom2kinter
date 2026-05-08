@@ -4,7 +4,7 @@ import tkinter
 import tkinter.ttk as ttk
 import warnings
 from typing import Any, Callable, TYPE_CHECKING
-from typing_extensions import Literal, TypedDict
+from typing_extensions import TypedDict
 
 from ..appearance_mode import CTkAppearanceModeBaseClass
 from ..scaling import CTkScalingBaseClass
@@ -24,8 +24,6 @@ class CTkWidget(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
     # attributes that are passed to and managed by the tkinter frame only:
     _valid_tk_frame_attributes: set[str] = {"cursor"}
 
-    _cursor_manipulation_enabled: bool = True
-
     def __init__(self,
                  master: CTkContainer,
                  width: int = 0,
@@ -42,15 +40,19 @@ class CTkWidget(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
         # check if kwargs is empty, if not raise error for unsupported arguments
         check_kwargs_empty(kwargs, raise_error=True)
 
-        # dimensions independent of scaling
-        self._current_width: int | float = width  # _current_width and _current_height in pixel, represent current size of the widget
-        self._current_height: int | float = height  # _current_width and _current_height are independent of the scale
-        self._desired_width: int | float = width  # _desired_width and _desired_height, represent desired size set by width and height
+        # dimensions
+        # _desired_width and _desired_height represent desired size set by width and height and
+        # don't consider the scaling factor
+        self._desired_width: int | float = width
         self._desired_height: int | float = height
+        # _current_width and _current_height represent the actual size of the widget,
+        # which consider both the scaling factor and the stretch behaviour mandated by the geometry manager
+        self._current_width: int | float = self._apply_scaling(width)
+        self._current_height: int | float = self._apply_scaling(height)
 
         # set width and height of tkinter.Frame
-        super().configure(width=self._apply_widget_scaling(self._desired_width),
-                          height=self._apply_widget_scaling(self._desired_height))
+        super().configure(width=self._apply_scaling(self._desired_width),
+                          height=self._apply_scaling(self._desired_height))
 
         # save latest geometry function and kwargs
         class GeometryCallDict(TypedDict):
@@ -63,11 +65,12 @@ class CTkWidget(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
         # so that this widget seems to be transparent
         self._bg_color: ColorType = self._detect_color_of_master() if bg_color == "transparent" else self._check_color_type(bg_color)
 
-        # set bg color of tkinter.Frame
-        super().configure(bg=self._apply_appearance_mode(self._bg_color))
+        # targets for basic operations that child classes can fill as needed
+        self._bind_targets: list[tkinter.Misc] = []
+        self._focus_target: tkinter.Misc | None = None
 
         # add configure callback to tkinter.Frame
-        super().bind('<Configure>', self._update_dimensions_event)
+        super().bind("<Configure>", self._update_dimensions_event)
 
         # overwrite configure methods of master when master is tkinter widget, so that bg changes get applied on child CTk widget as well
         if (isinstance(self.master, (tkinter.Tk, tkinter.Toplevel, tkinter.Frame, tkinter.LabelFrame, ttk.Frame, ttk.LabelFrame, ttk.Notebook)) and
@@ -100,12 +103,7 @@ class CTkWidget(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
         CTkScalingBaseClass.destroy(self)
 
     def _draw(self, force_colors_update: bool = False) -> None:
-        """ can be overridden but super method must be called """
-        if force_colors_update:
-            # Configuring color of tkinter.Frame not necessary at the moment?
-            # Causes flickering on Windows and Linux for segmented button for some reason!
-            # super().configure(bg=self._apply_appearance_mode(self._bg_color))
-            pass
+        """ Called when some attributes have changed and the widget has to be redrawn """
 
     def config(self, *args: Any, **kwargs: Any) -> None:
         raise AttributeError("'config' is not implemented for CTk widgets. For consistency, always use 'configure' instead.")
@@ -113,11 +111,9 @@ class CTkWidget(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
     def configure(self, require_redraw: bool = False, **kwargs: Any) -> None:
         """ basic configure with bg_color, width, height support, calls configure of tkinter.Frame, updates in the end """
 
-        if "width" in kwargs:
-            self._set_dimensions(width=kwargs.pop("width"))
-
-        if "height" in kwargs:
-            self._set_dimensions(height=kwargs.pop("height"))
+        if "width" in kwargs or "height" in kwargs:
+            self._set_dimensions(width=kwargs.pop("width", None),
+                                 height=kwargs.pop("height", None))
 
         if "bg_color" in kwargs:
             new_bg_color = self._check_color_type(kwargs.pop("bg_color"), transparency=True)
@@ -136,7 +132,7 @@ class CTkWidget(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
             self._draw(force_colors_update=True)
 
     def cget(self, attribute_name: str) -> Any:
-        """ basic cget with bg_color, width, height support, calls cget of tkinter.Frame """
+        """ Basic cget with bg_color, width, height support, calls cget of tkinter.Frame """
 
         if attribute_name == "bg_color":
             return self._bg_color
@@ -150,7 +146,7 @@ class CTkWidget(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
             raise ValueError(f"'{attribute_name}' is not a supported argument. Look at the documentation for supported arguments.")
 
     def _check_image_type(self, image: CTkImage | ImageTk.PhotoImage | tkinter.PhotoImage | str | None) -> CTkImage | ImageTk.PhotoImage | tkinter.PhotoImage | str | None:
-        """ check image type when passed to widget """
+        """ Check image type when passed to widget """
         if image is None or image == "":
             return image
         elif isinstance(image, CTkImage):
@@ -160,15 +156,15 @@ class CTkWidget(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
             return image
 
     def _update_dimensions_event(self, event: tkinter.Event) -> None:
-        # only redraw if dimensions changed (for performance), independent of scaling
-        if round(self._current_width) != round(self._reverse_widget_scaling(event.width)) or round(self._current_height) != round(self._reverse_widget_scaling(event.height)):
-            self._current_width = self._reverse_widget_scaling(event.width)  # adjust current size according to new size given by event
-            self._current_height = self._reverse_widget_scaling(event.height)  # _current_width and _current_height are independent of the scale
-
+        """ Called when the window has been reshaped, and so contained widgets changed dimentions """
+        # only redraw if dimensions changed (for performance)
+        if self._current_width != event.width or self._current_height != event.height:
+            self._current_width = event.width
+            self._current_height = event.height
             self._draw()  # faster drawing without color changes
 
     def _detect_color_of_master(self) -> ColorType:
-        """ detect foreground color of master widget for bg_color and transparent color """
+        """ Detects foreground color of master widget for bg_color and transparent color """
 
         if isinstance(self.master, CTkContainer):
             return self.master.get_fg_color()
@@ -176,7 +172,7 @@ class CTkWidget(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
         elif isinstance(self.master, (ttk.Frame, ttk.LabelFrame, ttk.Notebook, ttk.Label)):  # master is ttk widget
             try:
                 ttk_style = ttk.Style()
-                return ttk_style.lookup(self.master.winfo_class(), 'background')
+                return ttk_style.lookup(self.master.winfo_class(), "background")
             except Exception:
                 pass
 
@@ -187,46 +183,76 @@ class CTkWidget(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
                 pass
         return "#FFFFFF", "#000000"
 
-    def _set_appearance_mode(self, mode: Literal["light", "dark"]) -> None:
-        super()._set_appearance_mode(mode)
+    def _set_appearance_mode(self) -> None:
         self._draw(force_colors_update=True)
         super().update_idletasks()
 
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
 
-        super().configure(width=self._apply_widget_scaling(self._desired_width),
-                          height=self._apply_widget_scaling(self._desired_height))
+        super().configure(width=self._apply_scaling(self._desired_width),
+                          height=self._apply_scaling(self._desired_height))
 
         if self._last_geometry_manager_call is not None:
             self._last_geometry_manager_call["function"](**self._apply_argument_scaling(self._last_geometry_manager_call["kwargs"]))
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
+        """ Called when desired dimentions change """
         if width is not None:
             self._desired_width = width
         if height is not None:
             self._desired_height = height
 
-        super().configure(width=self._apply_widget_scaling(self._desired_width),
-                          height=self._apply_widget_scaling(self._desired_height))
+        super().configure(width=self._apply_scaling(self._desired_width),
+                          height=self._apply_scaling(self._desired_height))
+
+    def _create_bindings(self, sequence: str | None = None) -> None:
+        """ Called after an "unbind" operation to restore internal binded methods """
 
     def bind(self,
              sequence: str | None = None,
              func: Callable[[tkinter.Event], None] | None = None,
              add: str | bool = True) -> None:
-        raise NotImplementedError
+        if not self._bind_targets:
+            raise NotImplementedError
+        if not (add == "+" or add is True):
+            raise ValueError("'add' argument can only be '+' or True to preserve internal callbacks")
+        for obj in self._bind_targets:
+            obj.bind(sequence, func, add=True)
 
     def unbind(self, sequence: str, funcid: None = None) -> None:
-        raise NotImplementedError
-
-    def unbind_all(self, sequence: str) -> None:
-        raise AttributeError("'unbind_all' is not allowed, because it would delete necessary internal callbacks for all widgets")
+        if not self._bind_targets:
+            raise NotImplementedError
+        if funcid is not None:
+            raise ValueError("'funcid' argument can only be None, because there is a bug in" +
+                             " tkinter and its not clear whether the internal callbacks will be unbinded or not")
+        for obj in self._bind_targets:
+            obj.unbind(sequence, None)
+        self._create_bindings(sequence=sequence)  # restore internal callbacks for sequence
 
     def bind_all(self,
                  sequence: str | None = None,
                  func: Callable[[tkinter.Event], None] | None = None,
                  add: str | bool = True) -> None:
         raise AttributeError("'bind_all' is not allowed, could result in undefined behavior")
+
+    def unbind_all(self, sequence: str) -> None:
+        raise AttributeError("'unbind_all' is not allowed, because it would delete necessary internal callbacks for all widgets")
+
+    def focus(self) -> None:
+        if self._focus_target is None:
+            raise NotImplementedError
+        return self._focus_target.focus()
+
+    def focus_set(self) -> None:
+        if self._focus_target is None:
+            raise NotImplementedError
+        return self._focus_target.focus_set()
+
+    def focus_force(self) -> None:
+        if self._focus_target is None:
+            raise NotImplementedError
+        return self._focus_target.focus_force()
 
     def place(self, **kwargs: Any) -> None:
         """

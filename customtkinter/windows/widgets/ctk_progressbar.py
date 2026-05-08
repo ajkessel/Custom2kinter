@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import tkinter
 import math
-from typing import Any, Callable
+from typing import Any
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkContainer, CTkWidget
@@ -74,16 +74,15 @@ class CTkProgressBar(CTkWidget):
         self._loop_running: bool = False
         self._loop_after_id: str | None = None
 
-        self.grid_rowconfigure(0, weight=1)
-        self.grid_columnconfigure(0, weight=1)
-
         self._canvas = CTkCanvas(master=self,
                                  highlightthickness=0,
-                                 width=self._apply_widget_scaling(self._desired_width),
-                                 height=self._apply_widget_scaling(self._desired_height))
-        self._canvas.grid(row=0, column=0, rowspan=1, columnspan=1, sticky="nswe")
+                                 width=self._apply_scaling(self._desired_width),
+                                 height=self._apply_scaling(self._desired_height))
+        self._canvas.place(x=0, y=0, relwidth=1, relheight=1)
         self._rounded_rect = RoundedRect(self._canvas)
         self._progress_bar = ProgressBar(self._canvas)
+        self._bind_targets.append(self._canvas)
+        self._focus_target = self._canvas
 
         self._draw(force_colors_update=True)
 
@@ -96,15 +95,15 @@ class CTkProgressBar(CTkWidget):
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
 
-        self._canvas.configure(width=self._apply_widget_scaling(self._desired_width),
-                               height=self._apply_widget_scaling(self._desired_height))
+        self._canvas.configure(width=self._apply_scaling(self._desired_width),
+                               height=self._apply_scaling(self._desired_height))
         self._draw()
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
         super()._set_dimensions(width, height)
 
-        self._canvas.configure(width=self._apply_widget_scaling(self._desired_width),
-                               height=self._apply_widget_scaling(self._desired_height))
+        self._canvas.configure(width=self._apply_scaling(self._desired_width),
+                               height=self._apply_scaling(self._desired_height))
         self._draw()
 
     def destroy(self) -> None:
@@ -124,10 +123,10 @@ class CTkProgressBar(CTkWidget):
             progress_value_1 = min(1.0, progress_value + (self._indeterminate_width / 2))
             progress_value_2 = max(0.0, progress_value - (self._indeterminate_width / 2))
 
-        common_args = (self._apply_widget_scaling(self._current_width),
-                       self._apply_widget_scaling(self._current_height),
-                       self._apply_widget_scaling(self._theme_info["corner_radius"]),
-                       self._apply_widget_scaling(self._theme_info["border_width"]))
+        common_args = (self._current_width,
+                       self._current_height,
+                       self._apply_scaling(self._theme_info["corner_radius"]),
+                       self._apply_scaling(self._theme_info["border_width"]))
 
         requires_recoloring_1 = self._rounded_rect.update(*common_args)
 
@@ -170,7 +169,7 @@ class CTkProgressBar(CTkWidget):
             if self._variable is not None:
                 self._variable.trace_remove("write", self._variable_callback_name)
             self._variable = kwargs.pop("variable")
-            if self._variable is not None and self._variable != "":
+            if self._variable is not None:
                 self._variable_callback_name = self._variable.trace_add("write", self._variable_callback)
                 self.set(self._variable.get(), from_variable_callback=True)
 
@@ -242,12 +241,10 @@ class CTkProgressBar(CTkWidget):
                 self._determinate_value += self._determinate_speed / 50.0
                 if self._determinate_value > 1.0:
                     self._determinate_value -= 1.0
-                self._draw()
-                self._loop_after_id = self.after(20, self._internal_loop)
             else:
                 self._indeterminate_value += self._indeterminate_speed
-                self._draw()
-                self._loop_after_id = self.after(20, self._internal_loop)
+            self._draw()
+            self._loop_after_id = self.after(20, self._internal_loop)
 
     def step(self) -> None:
         """ increase progress """
@@ -255,32 +252,6 @@ class CTkProgressBar(CTkWidget):
             self._determinate_value += self._determinate_speed / 50.0
             if self._determinate_value > 1.0:
                 self._determinate_value -= 1.0
-            self._draw()
         else:
             self._indeterminate_value += self._indeterminate_speed
-            self._draw()
-
-    def bind(self,
-             sequence: str | None = None,
-             func: Callable[[tkinter.Event], None] | None = None,
-             add: str | bool = True) -> None:
-        """ called on the tkinter.Canvas """
-        if not (add == "+" or add is True):
-            raise ValueError("'add' argument can only be '+' or True to preserve internal callbacks")
-        self._canvas.bind(sequence, func, add=True)
-
-    def unbind(self, sequence: str, funcid: None = None) -> None:
-        """ called on the tkinter.Label and tkinter.Canvas """
-        if funcid is not None:
-            raise ValueError("'funcid' argument can only be None, because there is a bug in" +
-                             " tkinter and its not clear whether the internal callbacks will be unbinded or not")
-        self._canvas.unbind(sequence, None)
-
-    def focus(self) -> None:
-        return self._canvas.focus()
-
-    def focus_set(self) -> None:
-        return self._canvas.focus_set()
-
-    def focus_force(self) -> None:
-        return self._canvas.focus_force()
+        self._draw()

@@ -48,7 +48,9 @@
     "top_fg_color": ["gray81", "gray20"],
     "border_color": ["gray65", "gray28"],
     "anchor": "center",
-    "segmented_button": {}
+    "segmented_button": {
+      "height": 26
+    }
   },
   "CTkButton": {
     "width": 140,
@@ -111,7 +113,9 @@
     "text_color": ["gray10", "#DCE4EE"],
     "font": {},
     "activate_scrollbars": true,
-    "scrollbar": {}
+    "scrollbar": {
+      "thickness": 8
+    }
   },
   "CTkComboBox": {
     "width": 140,
@@ -141,7 +145,6 @@
     "text_color": ["#DCE4EE", "#DCE4EE"],
     "text_color_disabled": ["gray74", "gray60"],
     "hover": true,
-    "dynamic_resizing": true,
     "font": {},
     "anchor": "w",
     "dropdown": {}
@@ -257,7 +260,6 @@
     "unselected_hover_color": ["gray70", "gray41"],
     "text_color": ["#DCE4EE", "#DCE4EE"],
     "text_color_disabled": ["gray74", "gray60"],
-    "dynamic_resizing": true,
     "font": {}
   },
   "DropdownMenu": {

@@ -63,8 +63,8 @@ class CTkScrollableFrame(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBa
         self._create_bindings()
         self._create_window_id: int = self._parent_canvas.create_window(0, 0, window=self, anchor="nw")
 
-        self._parent_canvas.configure(width=self._apply_widget_scaling(self._theme_info["width"]),
-                                      height=self._apply_widget_scaling(self._theme_info["height"]))
+        self._parent_canvas.configure(width=self._apply_scaling(self._theme_info["width"]),
+                                      height=self._apply_scaling(self._theme_info["height"]))
         self._draw(force_colors_update=True)
 
         self._shift_pressed: bool = False
@@ -97,12 +97,13 @@ class CTkScrollableFrame(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBa
         CTkScalingBaseClass.destroy(self)
 
     def _create_grid(self) -> None:
-        border_spacing = self._apply_widget_scaling(self._parent_frame.cget("corner_radius") + self._parent_frame.cget("border_width"))
+        border_spacing = self._apply_scaling(self._parent_frame.cget("corner_radius") + self._parent_frame.cget("border_width"))
+        border_padding = (0, self._parent_frame.cget("border_width") + 1)
+
+        self._parent_frame.grid_columnconfigure(0, weight=1)
+        self._parent_frame.grid_rowconfigure(1, weight=1)
 
         if self._theme_info["orientation"] == "horizontal":
-            border_padding = (0, self._parent_frame.cget("border_width") + 1)
-            self._parent_frame.grid_columnconfigure(0, weight=1)
-            self._parent_frame.grid_rowconfigure(1, weight=1)
             self._parent_canvas.grid(row=1, column=0, sticky="nsew", padx=border_spacing, pady=(border_spacing, 0))
             self._scrollbar.grid(row=2, column=0, sticky="nsew", padx=border_spacing, pady=border_padding)
 
@@ -112,9 +113,6 @@ class CTkScrollableFrame(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBa
                 self._label.grid_forget()
 
         elif self._theme_info["orientation"] == "vertical":
-            border_padding = (0, self._parent_frame.cget("border_width") + 1)
-            self._parent_frame.grid_columnconfigure(0, weight=1)
-            self._parent_frame.grid_rowconfigure(1, weight=1)
             self._parent_canvas.grid(row=1, column=0, sticky="nsew", padx=(border_spacing, 0), pady=border_spacing)
             self._scrollbar.grid(row=1, column=1, sticky="nsew", padx=border_padding, pady=border_spacing)
 
@@ -123,15 +121,15 @@ class CTkScrollableFrame(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBa
             else:
                 self._label.grid_forget()
 
-    def _set_appearance_mode(self, mode: Literal["light", "dark"]) -> None:
-        super()._set_appearance_mode(mode)
+    def _set_appearance_mode(self) -> None:
         self._draw(force_colors_update=True)
+        super().update_idletasks()
 
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
 
-        self._parent_canvas.configure(width=self._apply_widget_scaling(self._theme_info["width"]),
-                                      height=self._apply_widget_scaling(self._theme_info["height"]))
+        self._parent_canvas.configure(width=self._apply_scaling(self._theme_info["width"]),
+                                      height=self._apply_scaling(self._theme_info["height"]))
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
         if width is not None:
@@ -139,8 +137,8 @@ class CTkScrollableFrame(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBa
         if height is not None:
             self._theme_info["height"] = height
 
-        self._parent_canvas.configure(width=self._apply_widget_scaling(self._theme_info["width"]),
-                                      height=self._apply_widget_scaling(self._theme_info["height"]))
+        self._parent_canvas.configure(width=self._apply_scaling(self._theme_info["width"]),
+                                      height=self._apply_scaling(self._theme_info["height"]))
 
     def _draw(self, force_colors_update: bool = False) -> None:
         if force_colors_update:
@@ -214,27 +212,20 @@ class CTkScrollableFrame(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBa
 
     def _mouse_wheel_all(self, event: tkinter.Event) -> None:
         if self._check_if_valid_scroll(event.widget):
-            if sys.platform.startswith("win"):
-                if self._shift_pressed:
-                    if self._parent_canvas.xview() != (0.0, 1.0):
-                        self._parent_canvas.xview("scroll", -int(event.delta / 6), "units")
-                else:
-                    if self._parent_canvas.yview() != (0.0, 1.0):
-                        self._parent_canvas.yview("scroll", -int(event.delta / 6), "units")
-            elif sys.platform == "darwin":
-                if self._shift_pressed:
-                    if self._parent_canvas.xview() != (0.0, 1.0):
-                        self._parent_canvas.xview("scroll", -event.delta, "units")
-                else:
-                    if self._parent_canvas.yview() != (0.0, 1.0):
-                        self._parent_canvas.yview("scroll", -event.delta, "units")
+            if self._shift_pressed:
+                view_method = self._parent_canvas.xview
+                view_scroll_method = self._parent_canvas.xview_scroll
             else:
-                if self._shift_pressed:
-                    if self._parent_canvas.xview() != (0.0, 1.0):
-                        self._parent_canvas.xview_scroll(-1 if event.num == 4 else 1, "units")
+                view_method = self._parent_canvas.yview
+                view_scroll_method = self._parent_canvas.yview_scroll
+
+            if view_method() != (0.0, 1.0):
+                if sys.platform.startswith("win"):
+                    view_method("scroll", -int(event.delta / 6), "units")
+                elif sys.platform == "darwin":
+                    view_method("scroll", -event.delta, "units")
                 else:
-                    if self._parent_canvas.yview() != (0.0, 1.0):
-                        self._parent_canvas.yview_scroll(-1 if event.num == 4 else 1, "units")
+                    view_scroll_method(-1 if event.num == 4 else 1, "units")
 
 
     def _keyboard_shift_press_all(self, _: tkinter.Event) -> None:
@@ -249,7 +240,7 @@ class CTkScrollableFrame(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBa
         elif isinstance(widget, (CTkScrollbar, CTkSlider, CTkTextbox)):
             return False
         elif isinstance(widget, CTkScrollableFrame):
-            return widget._parent_canvas == self._parent_canvas
+            return widget == self
         elif widget.master is not None:
             return self._check_if_valid_scroll(widget.master)
         else:

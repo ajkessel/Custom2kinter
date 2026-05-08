@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import tkinter
-import sys
 import copy
 from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
@@ -11,6 +10,7 @@ from .core_widget_classes.dropdown_menu import DropdownMenu, DropdownMenuArgs
 from .core_rendering import CTkCanvas, RoundedRect, Arrow
 from .font.ctk_font import CTkFont, FontType
 from .theme import ColorType, TransparentColorType, ThemeManager
+from .utility import get_proper_cursor
 
 
 class CTkComboBoxArgs(TypedDict, total=False):
@@ -65,7 +65,7 @@ class CTkComboBox(CTkWidget):
 
         # functionality
         self._state: Literal["normal", "disabled", "readonly"] = state
-        self._values: list[str] = ["CTkComboBox"] if values is None else values
+        self._values: list[str] = [] if values is None else values
         self._command: Callable[[str], None] | None = command
         self._variable: tkinter.StringVar | None = variable
         self._close_on_next_click: bool = False
@@ -76,8 +76,8 @@ class CTkComboBox(CTkWidget):
 
         self._canvas = CTkCanvas(master=self,
                                  highlightthickness=0,
-                                 width=self._apply_widget_scaling(self._desired_width),
-                                 height=self._apply_widget_scaling(self._desired_height))
+                                 width=self._apply_scaling(self._desired_width),
+                                 height=self._apply_scaling(self._desired_height))
         self._rounded_rect = RoundedRect(self._canvas, vertical_split=True)
         self._arrow = Arrow(self._canvas)
 
@@ -93,56 +93,43 @@ class CTkComboBox(CTkWidget):
                                     justify=self._theme_info["justify"],
                                     highlightthickness=0,
                                     font=self._apply_font_scaling(self._font))
+        self._bind_targets.append(self._entry)
+        self._focus_target = self._entry
 
-        self._create_grid()
         self._create_bindings()
         self._draw(force_colors_update=True)
 
         if self._variable is not None:
             self._entry.configure(textvariable=self._variable)
-
-        # insert default value
-        if self._variable is None:
+        else:
+            # insert default value
             if len(self._values) > 0:
                 self._entry.insert(0, self._values[0])
-            else:
-                self._entry.insert(0, "CTkComboBox")
 
     def _create_bindings(self, sequence: str | None = None) -> None:
         """ set necessary bindings for functionality of widget, will overwrite other bindings """
         if sequence is None:
-            self._rounded_rect.bind("<Enter>", self._on_enter, "right")
-            self._rounded_rect.bind("<Leave>", self._on_leave, "right")
-            self._rounded_rect.bind("<Button-1>", self._clicked, "right")
+            self._rounded_rect.bind("<Enter>", self._on_enter, section="right")
+            self._rounded_rect.bind("<Leave>", self._on_leave, section="right")
+            self._rounded_rect.bind("<Button-1>", self.invoke, section="right")
             self._arrow.bind("<Enter>", self._on_enter)
             self._arrow.bind("<Leave>", self._on_leave)
-            self._arrow.bind("<Button-1>", self._clicked)
-
-    def _create_grid(self) -> None:
-        self._canvas.grid(row=0, column=0, rowspan=1, columnspan=1, sticky="nsew")
-
-        left_section_width = self._current_width - self._current_height
-        self._entry.grid(row=0, column=0, rowspan=1, columnspan=1, sticky="ew",
-                         padx=(max(self._apply_widget_scaling(self._theme_info["corner_radius"]), self._apply_widget_scaling(3)),
-                               max(self._apply_widget_scaling(self._current_width - left_section_width + 3), self._apply_widget_scaling(3))),
-                         pady=self._apply_widget_scaling(self._theme_info["border_width"]))
+            self._arrow.bind("<Button-1>", self.invoke)
 
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
 
-        # change entry font size and grid padding
+        # change entry font size and canvas sizes
         self._entry.configure(font=self._apply_font_scaling(self._font))
-        self._create_grid()
-
-        self._canvas.configure(width=self._apply_widget_scaling(self._desired_width),
-                               height=self._apply_widget_scaling(self._desired_height))
+        self._canvas.configure(width=self._apply_scaling(self._desired_width),
+                               height=self._apply_scaling(self._desired_height))
         self._draw()
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
         super()._set_dimensions(width, height)
 
-        self._canvas.configure(width=self._apply_widget_scaling(self._desired_width),
-                               height=self._apply_widget_scaling(self._desired_height))
+        self._canvas.configure(width=self._apply_scaling(self._desired_width),
+                               height=self._apply_scaling(self._desired_height))
         self._draw()
 
     def _update_font(self) -> None:
@@ -162,15 +149,25 @@ class CTkComboBox(CTkWidget):
         super()._draw(force_colors_update)
 
         left_section_width = self._current_width - self._current_height
-        requires_recoloring_1 = self._rounded_rect.update(self._apply_widget_scaling(self._current_width),
-                                                          self._apply_widget_scaling(self._current_height),
-                                                          self._apply_widget_scaling(self._theme_info["corner_radius"]),
-                                                          self._apply_widget_scaling(self._theme_info["border_width"]),
-                                                          self._apply_widget_scaling(left_section_width))
+        min_spacing = self._apply_scaling(3)
+        corner_radius = self._apply_scaling(self._theme_info["corner_radius"])
+        border_width = self._apply_scaling(self._theme_info["border_width"])
 
-        requires_recoloring_2 = self._arrow.update(self._apply_widget_scaling(self._current_width - (self._current_height / 2)),
-                                                   self._apply_widget_scaling(self._current_height / 2),
-                                                   self._apply_widget_scaling(self._current_height / 3),
+        self._canvas.grid(row=0, column=0, rowspan=1, columnspan=1, sticky="nsew")
+        self._entry.grid(row=0, column=0, rowspan=1, columnspan=1, sticky="ew",
+                         padx=(max(corner_radius, min_spacing),
+                               max(self._current_width - left_section_width + min_spacing, min_spacing)),
+                         pady=border_width)
+
+        requires_recoloring_1 = self._rounded_rect.update(self._current_width,
+                                                          self._current_height,
+                                                          corner_radius,
+                                                          border_width,
+                                                          left_section_width)
+
+        requires_recoloring_2 = self._arrow.update(self._current_width - (self._current_height / 2),
+                                                   self._current_height / 2,
+                                                   self._current_height / 3,
                                                    180)
 
         if force_colors_update or requires_recoloring_1 or requires_recoloring_2:
@@ -181,30 +178,22 @@ class CTkComboBox(CTkWidget):
             border_color = self._apply_appearance_mode(self._theme_info["border_color"])
             button_color = self._apply_appearance_mode(self._theme_info["button_color"])
             text_color = self._apply_appearance_mode(self._theme_info["text_color"])
+            text_color_disabled = self._apply_appearance_mode(self._theme_info["text_color_disabled"])
 
             self._canvas.configure(bg=self._apply_appearance_mode(self._bg_color))
             self._rounded_rect.set_main_color(fg_color, "left")
             self._rounded_rect.set_border_color(border_color, "left")
             self._rounded_rect.set_main_color(button_color, "right")
             self._rounded_rect.set_border_color(button_color, "right")
+            self._arrow.set_color(text_color_disabled if self._state == tkinter.DISABLED else text_color)
 
             self._entry.configure(bg=fg_color,
                                   fg=text_color,
                                   readonlybackground=fg_color,
                                   disabledbackground=fg_color,
-                                  disabledforeground=self._apply_appearance_mode(self._theme_info["text_color_disabled"]),
+                                  disabledforeground=text_color_disabled,
                                   highlightcolor=fg_color,
                                   insertbackground=text_color)
-
-            if self._state == tkinter.DISABLED:
-                self._arrow.set_color(self._apply_appearance_mode(self._theme_info["text_color_disabled"]))
-            else:
-                self._arrow.set_color(text_color)
-
-    def _open_dropdown_menu(self) -> None:
-        self._dropdown_menu.open(self.winfo_rootx(),
-                                 self.winfo_rooty() + self._apply_widget_scaling(self._current_height + 0))
-        self._close_on_next_click = True
 
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkComboBoxArgs]) -> None:
         if "corner_radius" in kwargs:
@@ -213,7 +202,6 @@ class CTkComboBox(CTkWidget):
 
         if "border_width" in kwargs:
             self._theme_info["border_width"] = kwargs.pop("border_width")
-            self._create_grid()
             require_redraw = True
 
         if "fg_color" in kwargs:
@@ -293,22 +281,21 @@ class CTkComboBox(CTkWidget):
 
     def _on_enter(self, _: tkinter.Event | None = None) -> None:
         self._close_on_next_click = self._dropdown_menu.is_open()
-        if self._theme_info["hover"] is True and self._state != tkinter.DISABLED and len(self._values) > 0:
-            if sys.platform == "darwin" and len(self._values) > 0 and self._cursor_manipulation_enabled:
-                self._canvas.configure(cursor="pointinghand")
-            elif sys.platform.startswith("win") and len(self._values) > 0 and self._cursor_manipulation_enabled:
-                self._canvas.configure(cursor="hand2")
+        if self._state != tkinter.DISABLED and len(self._values) > 0:
+            cursor = get_proper_cursor("clickable")
+            if cursor is not None:
+                self._canvas.configure(cursor=cursor)
 
-            # set color of button parts to hover color
-            color = self._apply_appearance_mode(self._theme_info["button_hover_color"])
-            self._rounded_rect.set_main_color(color, "right")
-            self._rounded_rect.set_border_color(color, "right")
+            if self._theme_info["hover"]:
+                # set color of button parts to hover color
+                color = self._apply_appearance_mode(self._theme_info["button_hover_color"])
+                self._rounded_rect.set_main_color(color, "right")
+                self._rounded_rect.set_border_color(color, "right")
 
     def _on_leave(self, _: tkinter.Event | None = None) -> None:
-        if sys.platform == "darwin" and len(self._values) > 0 and self._cursor_manipulation_enabled:
-            self._canvas.configure(cursor="arrow")
-        elif sys.platform.startswith("win") and len(self._values) > 0 and self._cursor_manipulation_enabled:
-            self._canvas.configure(cursor="arrow")
+        cursor = get_proper_cursor("normal")
+        if cursor is not None:
+            self._canvas.configure(cursor=cursor)
 
         # restore color of button parts
         color = self._apply_appearance_mode(self._theme_info["button_color"])
@@ -316,68 +303,43 @@ class CTkComboBox(CTkWidget):
         self._rounded_rect.set_border_color(color, "right")
 
     def _dropdown_callback(self, value: str) -> None:
-        if self._state == "readonly":
-            self._entry.configure(state="normal")
-            self._entry.delete(0, tkinter.END)
-            self._entry.insert(0, value)
-            self._entry.configure(state="readonly")
-        else:
-            self._entry.delete(0, tkinter.END)
-            self._entry.insert(0, value)
-
+        self.set(value)
         if self._command is not None:
             self._command(value)
 
     def set(self, value: str) -> None:
-        if self._state == "readonly":
-            self._entry.configure(state="normal")
+        """ Changes the content to the desired value, regardless of the widget's state and admissible values. """
+        if self._state == tkinter.NORMAL:
             self._entry.delete(0, tkinter.END)
             self._entry.insert(0, value)
-            self._entry.configure(state="readonly")
         else:
+            self._entry.configure(state=tkinter.NORMAL)
             self._entry.delete(0, tkinter.END)
             self._entry.insert(0, value)
+            self._entry.configure(state=self._state)
 
-    def get(self) -> str:
-        return self._entry.get()
+    def get(self, index: int | None = None) -> str:
+        """ Returns the current value.\n
+        If an index is provided, returns the value in that position. """
+        if index is None:
+            return self._entry.get()
+        else:
+            return self._values[index]
 
     def index(self, value: str | None = None) -> int:
-        """ returns index of selected value, raises ValueError if the value is missing
-        if the parameter is provided, returns the associated index or raises ValueError if no value is found """
+        """ Returns index of selected value, raises ValueError if the value is missing.\n
+        If the parameter is provided, returns the associated index or raises ValueError if no value is found. """
         if value is None:
-            return self._values.index(self.get())
-        else:
-            return self._values.index(value)
+            value = self.get()
+        return self._values.index(value)
 
-    def _clicked(self, _: tkinter.Event | None = None) -> None:
+    def invoke(self, _: tkinter.Event | None = None) -> None:
+        """ Toggles the visibility status of the dropdown menu if the widget is not disabled.\n
+        Can be called to simulate the user who clicks on the widget. """
         if self._close_on_next_click:
             self._dropdown_menu.close()
             self._close_on_next_click = False
-        elif self._state is not tkinter.DISABLED and len(self._values) > 0:
-            self._open_dropdown_menu()
-
-    def bind(self,
-             sequence: str | None = None,
-             func: Callable[[tkinter.Event], None] | None = None,
-             add: str | bool = True) -> None:
-        """ called on the tkinter.Entry """
-        if not (add == "+" or add is True):
-            raise ValueError("'add' argument can only be '+' or True to preserve internal callbacks")
-        self._entry.bind(sequence, func, add=True)
-
-    def unbind(self, sequence: str, funcid: None = None) -> None:
-        """ called on the tkinter.Entry """
-        if funcid is not None:
-            raise ValueError("'funcid' argument can only be None, because there is a bug in" +
-                             " tkinter and its not clear whether the internal callbacks will be unbinded or not")
-        self._entry.unbind(sequence, None)  # unbind all callbacks for sequence
-        self._create_bindings(sequence=sequence)  # restore internal callbacks for sequence
-
-    def focus(self) -> None:
-        return self._entry.focus()
-
-    def focus_set(self) -> None:
-        return self._entry.focus_set()
-
-    def focus_force(self) -> None:
-        return self._entry.focus_force()
+        elif self._state != tkinter.DISABLED and len(self._values) > 0:
+            self._dropdown_menu.open(self.winfo_rootx(),
+                                     self.winfo_rooty() + self._current_height)
+            self._close_on_next_click = True

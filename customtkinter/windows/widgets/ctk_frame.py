@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import tkinter
-from typing import Any, Callable
+from typing import Any
 from typing_extensions import TypedDict, Unpack
 
 from .core_widget_classes import CTkContainer, CTkWidget
@@ -61,11 +61,13 @@ class CTkFrame(CTkWidget, CTkContainer):
 
         self._canvas = CTkCanvas(master=self,
                                  highlightthickness=0,
-                                 width=self._apply_widget_scaling(self._current_width),
-                                 height=self._apply_widget_scaling(self._current_height))
+                                 width=self._apply_scaling(self._desired_width),
+                                 height=self._apply_scaling(self._desired_height))
         self._canvas.place(x=0, y=0, relwidth=1, relheight=1)
         self._background_corners = BackgroundCorners(self._canvas)
         self._rounded_rect = RoundedRect(self._canvas)
+        self._bind_targets.append(self._canvas)
+        self._focus_target = self._canvas
 
         self._draw(force_colors_update=True)
 
@@ -74,7 +76,6 @@ class CTkFrame(CTkWidget, CTkContainer):
         winfo_children of CTkFrame without self.canvas widget,
         because it's not a child but part of the CTkFrame itself
         """
-
         child_widgets = super().winfo_children()
         try:
             child_widgets.remove(self._canvas)
@@ -85,15 +86,15 @@ class CTkFrame(CTkWidget, CTkContainer):
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
 
-        self._canvas.configure(width=self._apply_widget_scaling(self._desired_width),
-                               height=self._apply_widget_scaling(self._desired_height))
+        self._canvas.configure(width=self._apply_scaling(self._desired_width),
+                               height=self._apply_scaling(self._desired_height))
         self._draw()
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
         super()._set_dimensions(width, height)
 
-        self._canvas.configure(width=self._apply_widget_scaling(self._desired_width),
-                               height=self._apply_widget_scaling(self._desired_height))
+        self._canvas.configure(width=self._apply_scaling(self._desired_width),
+                               height=self._apply_scaling(self._desired_height))
         self._draw()
 
     def _draw(self, force_colors_update: bool = False) -> None:
@@ -103,8 +104,8 @@ class CTkFrame(CTkWidget, CTkContainer):
             return
 
         if self._background_corner_colors is not None:
-            if (self._background_corners.update(self._apply_widget_scaling(self._current_width),
-                                                self._apply_widget_scaling(self._current_height)) or
+            if (self._background_corners.update(self._current_width,
+                                                self._current_height) or
                 force_colors_update):
                 self._background_corners.set_colors(self._apply_appearance_mode(self._background_corner_colors[0]),
                                                     self._apply_appearance_mode(self._background_corner_colors[1]),
@@ -113,10 +114,10 @@ class CTkFrame(CTkWidget, CTkContainer):
         else:
             self._background_corners.delete()
 
-        requires_recoloring = self._rounded_rect.update(self._apply_widget_scaling(self._current_width),
-                                                        self._apply_widget_scaling(self._current_height),
-                                                        self._apply_widget_scaling(self._theme_info["corner_radius"]),
-                                                        self._apply_widget_scaling(self._theme_info["border_width"]))
+        requires_recoloring = self._rounded_rect.update(self._current_width,
+                                                        self._current_height,
+                                                        self._apply_scaling(self._theme_info["corner_radius"]),
+                                                        self._apply_scaling(self._theme_info["border_width"]))
 
         if force_colors_update or requires_recoloring:
             self._background_corners.raise_()
@@ -172,19 +173,3 @@ class CTkFrame(CTkWidget, CTkContainer):
             return self._bg_color
         else:
             return self._fg_color
-
-    def bind(self,
-             sequence: str | None = None,
-             func: Callable[[tkinter.Event], None] | None = None,
-             add: str | bool = True) -> None:
-        """ called on the tkinter.Canvas """
-        if not (add == "+" or add is True):
-            raise ValueError("'add' argument can only be '+' or True to preserve internal callbacks")
-        self._canvas.bind(sequence, func, add=True)
-
-    def unbind(self, sequence: str, funcid: None = None) -> None:
-        """ called on the tkinter.Canvas """
-        if funcid is not None:
-            raise ValueError("'funcid' argument can only be None, because there is a bug in" +
-                             " tkinter and its not clear whether the internal callbacks will be unbinded or not")
-        self._canvas.unbind(sequence, None)

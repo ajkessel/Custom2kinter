@@ -13,6 +13,7 @@ from ..utility import deep_update
 #old syntax for retrocompatibility reasons
 ColorType: TypeAlias = Union[Literal["transparent"], str, Tuple[str, str]]
 TransparentColorType: TypeAlias = Union[Literal["transparent"], ColorType]
+AnchorType : TypeAlias = Literal["center", "n", "ne", "e", "se", "s", "sw", "w", "nw"]
 
 
 class ThemeInfo(TypedDict, total=False):
@@ -53,7 +54,6 @@ class ThemeInfo(TypedDict, total=False):
     text_color_disabled: ColorType
     placeholder_text_color: ColorType
     hover: bool
-    dynamic_resizing: bool
     activate_scrollbars: bool
     round_width_to_even_numbers: bool
     round_height_to_even_numbers: bool
@@ -67,7 +67,7 @@ class ThemeInfo(TypedDict, total=False):
     slant: Literal["italic", "roman"]
     underline: bool
     overstrike: bool
-    anchor: str  #center or combination of n, e, s, w
+    anchor: AnchorType
     justify: Literal["left", "center", "right"]
     compound: Literal["center", "left", "right", "top", "bottom", "none"]
     wraplength: int

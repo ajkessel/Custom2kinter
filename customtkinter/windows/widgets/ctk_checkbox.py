@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import tkinter
-import sys
 from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
@@ -9,6 +8,7 @@ from .core_widget_classes import CTkContainer, CTkWidget
 from .core_rendering import CTkCanvas, RoundedRect, Checkmark
 from .font.ctk_font import CTkFont, FontType
 from .theme import ColorType, TransparentColorType, ThemeManager
+from .utility import get_proper_cursor
 
 
 class CTkCheckBoxArgs(TypedDict, total=False):
@@ -77,23 +77,24 @@ class CTkCheckBox(CTkWidget):
 
         # configure grid system (1x3)
         self.grid_columnconfigure(0, weight=0)
-        self.grid_columnconfigure(1, weight=0, minsize=self._apply_widget_scaling(6))
+        self.grid_columnconfigure(1, weight=0, minsize=self._apply_scaling(6))
         self.grid_columnconfigure(2, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
         self._bg_canvas = CTkCanvas(master=self,
                                     highlightthickness=0,
-                                    width=self._apply_widget_scaling(self._desired_width),
-                                    height=self._apply_widget_scaling(self._desired_height))
+                                    width=self._apply_scaling(self._desired_width),
+                                    height=self._apply_scaling(self._desired_height))
         self._bg_canvas.grid(row=0, column=0, columnspan=3, sticky="nswe")
 
         self._canvas = CTkCanvas(master=self,
                                  highlightthickness=0,
-                                 width=self._apply_widget_scaling(self._theme_info["checkbox_width"]),
-                                 height=self._apply_widget_scaling(self._theme_info["checkbox_height"]))
+                                 width=self._apply_scaling(self._theme_info["checkbox_width"]),
+                                 height=self._apply_scaling(self._theme_info["checkbox_height"]))
         self._canvas.grid(row=0, column=0, sticky="e")
         self._rounded_rect = RoundedRect(self._canvas)
         self._checkmark = Checkmark(self._canvas)
+        self._bind_targets.append(self._canvas)
 
         self._text_label = tkinter.Label(master=self,
                                          bd=0,
@@ -105,9 +106,11 @@ class CTkCheckBox(CTkWidget):
                                          textvariable=self._textvariable)
         self._text_label.grid(row=0, column=2, sticky="w")
         self._text_label["anchor"] = "w"
+        self._bind_targets.append(self._text_label)
+        self._focus_target = self._text_label
 
         # register variable callback and set state according to variable
-        if self._variable is not None and self._variable != "":
+        if self._variable is not None:
             self._variable_callback_name = self._variable.trace_add("write", self._variable_callback)
             self._check_state = self._variable.get() == self._onvalue
 
@@ -124,36 +127,35 @@ class CTkCheckBox(CTkWidget):
             self._canvas.bind("<Leave>", self._on_leave)
             self._text_label.bind("<Leave>", self._on_leave)
         if sequence is None or sequence == "<Button-1>":
-            self._canvas.bind("<Button-1>", self.toggle)
-            self._text_label.bind("<Button-1>", self.toggle)
+            self._canvas.bind("<Button-1>", self.invoke)
+            self._text_label.bind("<Button-1>", self.invoke)
 
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
 
-        self.grid_columnconfigure(1, weight=0, minsize=self._apply_widget_scaling(6))
+        self.grid_columnconfigure(1, weight=0, minsize=self._apply_scaling(6))
         self._text_label.configure(font=self._apply_font_scaling(self._font))
 
-        self._bg_canvas.configure(width=self._apply_widget_scaling(self._desired_width),
-                                  height=self._apply_widget_scaling(self._desired_height))
-        self._canvas.configure(width=self._apply_widget_scaling(self._theme_info["checkbox_width"]),
-                               height=self._apply_widget_scaling(self._theme_info["checkbox_height"]))
+        self._bg_canvas.configure(width=self._apply_scaling(self._desired_width),
+                                  height=self._apply_scaling(self._desired_height))
+        self._canvas.configure(width=self._apply_scaling(self._theme_info["checkbox_width"]),
+                               height=self._apply_scaling(self._theme_info["checkbox_height"]))
         self._draw()
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
         super()._set_dimensions(width, height)
 
-        self._bg_canvas.configure(width=self._apply_widget_scaling(self._desired_width),
-                                  height=self._apply_widget_scaling(self._desired_height))
+        self._bg_canvas.configure(width=self._apply_scaling(self._desired_width),
+                                  height=self._apply_scaling(self._desired_height))
 
     def _update_font(self) -> None:
         """ pass font to tkinter widgets with applied font scaling and update grid with workaround """
-        if self._text_label is not None:
-            self._text_label.configure(font=self._apply_font_scaling(self._font))
+        self._text_label.configure(font=self._apply_font_scaling(self._font))
 
-            # Workaround to force grid to be resized when text changes size.
-            # Otherwise grid will lag and only resizes if other mouse action occurs.
-            self._bg_canvas.grid_forget()
-            self._bg_canvas.grid(row=0, column=0, columnspan=3, sticky="nswe")
+        # Workaround to force grid to be resized when text changes size.
+        # Otherwise grid will lag and only resizes if other mouse action occurs.
+        self._bg_canvas.grid_forget()
+        self._bg_canvas.grid(row=0, column=0, columnspan=3, sticky="nswe")
 
     def destroy(self) -> None:
         if self._variable is not None:
@@ -165,15 +167,15 @@ class CTkCheckBox(CTkWidget):
     def _draw(self, force_colors_update: bool = False) -> None:
         super()._draw(force_colors_update)
 
-        requires_recoloring_1 = self._rounded_rect.update(self._apply_widget_scaling(self._theme_info["checkbox_width"]),
-                                                          self._apply_widget_scaling(self._theme_info["checkbox_height"]),
-                                                          self._apply_widget_scaling(self._theme_info["corner_radius"]),
-                                                          self._apply_widget_scaling(self._theme_info["border_width"]))
+        requires_recoloring_1 = self._rounded_rect.update(self._apply_scaling(self._theme_info["checkbox_width"]),
+                                                          self._apply_scaling(self._theme_info["checkbox_height"]),
+                                                          self._apply_scaling(self._theme_info["corner_radius"]),
+                                                          self._apply_scaling(self._theme_info["border_width"]))
 
-        if self._check_state is True:
-            requires_recoloring_2 = self._checkmark.update(self._apply_widget_scaling(self._theme_info["checkbox_width"] / 2),
-                                                           self._apply_widget_scaling(self._theme_info["checkbox_height"] / 2),
-                                                           self._apply_widget_scaling(self._theme_info["checkbox_height"] * 0.58))
+        if self._check_state:
+            requires_recoloring_2 = self._checkmark.update(self._apply_scaling(self._theme_info["checkbox_width"] / 2),
+                                                           self._apply_scaling(self._theme_info["checkbox_height"] / 2),
+                                                           self._apply_scaling(self._theme_info["checkbox_height"] * 0.58))
         else:
             requires_recoloring_2 = False
             self._checkmark.delete()
@@ -187,7 +189,7 @@ class CTkCheckBox(CTkWidget):
             self._bg_canvas.configure(bg=bg_color)
             self._canvas.configure(bg=bg_color)
 
-            if self._check_state is True:
+            if self._check_state:
                 fg_color = self._apply_appearance_mode(self._theme_info["fg_color"])
                 self._rounded_rect.set_main_color(fg_color)
                 self._rounded_rect.set_border_color(fg_color)
@@ -196,7 +198,7 @@ class CTkCheckBox(CTkWidget):
                 self._rounded_rect.set_main_color(bg_color)
                 self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
 
-            if self._state == tkinter.DISABLED:
+            if self._state != tkinter.NORMAL:
                 self._text_label.configure(fg=self._apply_appearance_mode(self._theme_info["text_color_disabled"]))
             else:
                 self._text_label.configure(fg=self._apply_appearance_mode(self._theme_info["text_color"]))
@@ -208,12 +210,12 @@ class CTkCheckBox(CTkWidget):
 
         if "checkbox_width" in kwargs:
             self._theme_info["checkbox_width"] = kwargs.pop("checkbox_width")
-            self._canvas.configure(width=self._apply_widget_scaling(self._theme_info["checkbox_width"]))
+            self._canvas.configure(width=self._apply_scaling(self._theme_info["checkbox_width"]))
             require_redraw = True
 
         if "checkbox_height" in kwargs:
             self._theme_info["checkbox_height"] = kwargs.pop("checkbox_height")
-            self._canvas.configure(height=self._apply_widget_scaling(self._theme_info["checkbox_height"]))
+            self._canvas.configure(height=self._apply_scaling(self._theme_info["checkbox_height"]))
             require_redraw = True
 
         if "corner_radius" in kwargs:
@@ -282,15 +284,15 @@ class CTkCheckBox(CTkWidget):
             require_new_state = True
 
         if "variable" in kwargs:
-            if self._variable is not None and self._variable != "":
+            if self._variable is not None:
                 self._variable.trace_remove("write", self._variable_callback_name)  # remove old variable callback
             self._variable = kwargs.pop("variable")
-            if self._variable is not None and self._variable != "":
+            if self._variable is not None:
                 self._variable_callback_name = self._variable.trace_add("write", self._variable_callback)
                 require_new_state = True
 
-        if require_new_state and self._variable is not None and self._variable != "":
-            self._check_state = True if self._variable.get() == self._onvalue else False
+        if require_new_state and self._variable is not None:
+            self._check_state = self._variable.get() == self._onvalue
             require_redraw = True
         super().configure(require_redraw=require_redraw, **kwargs)
 
@@ -315,37 +317,21 @@ class CTkCheckBox(CTkWidget):
             return super().cget(attribute_name)
 
     def _set_cursor(self) -> None:
-        if self._cursor_manipulation_enabled:
-            if self._state == tkinter.DISABLED:
-                if sys.platform == "darwin":
-                    self._canvas.configure(cursor="arrow")
-                    if self._text_label is not None:
-                        self._text_label.configure(cursor="arrow")
-                elif sys.platform.startswith("win"):
-                    self._canvas.configure(cursor="arrow")
-                    if self._text_label is not None:
-                        self._text_label.configure(cursor="arrow")
-
-            elif self._state == tkinter.NORMAL:
-                if sys.platform == "darwin":
-                    self._canvas.configure(cursor="pointinghand")
-                    if self._text_label is not None:
-                        self._text_label.configure(cursor="pointinghand")
-                elif sys.platform.startswith("win"):
-                    self._canvas.configure(cursor="hand2")
-                    if self._text_label is not None:
-                        self._text_label.configure(cursor="hand2")
+        cursor = get_proper_cursor("normal" if self._state != tkinter.NORMAL else "clickable")
+        if cursor is not None:
+            self._canvas.configure(cursor=cursor)
+            self._text_label.configure(cursor=cursor)
 
     def _on_enter(self, _: tkinter.Event | None = None) -> None:
-        if self._theme_info["hover"] is True and self._state == tkinter.NORMAL:
+        if self._theme_info["hover"] and self._state == tkinter.NORMAL:
             hover_color = self._apply_appearance_mode(self._theme_info["hover_color"])
 
             self._rounded_rect.set_main_color(hover_color)
-            if self._check_state is True:
+            if self._check_state:
                 self._rounded_rect.set_border_color(hover_color)
 
     def _on_leave(self, _: tkinter.Event | None = None) -> None:
-        if self._check_state is True:
+        if self._check_state:
             fg_color = self._apply_appearance_mode(self._theme_info["fg_color"])
             self._rounded_rect.set_main_color(fg_color)
             self._rounded_rect.set_border_color(fg_color)
@@ -356,9 +342,9 @@ class CTkCheckBox(CTkWidget):
     def _variable_callback(self, *_: str) -> None:
         if not self._variable_callback_blocked:
             if self._variable.get() == self._onvalue:
-                self.select(from_variable_callback=True)
+                self.set(True, from_variable_callback=True)
             elif self._variable.get() == self._offvalue:
-                self.deselect(from_variable_callback=True)
+                self.set(False, from_variable_callback=True)
 
     def set(self, state: bool, from_variable_callback: bool = False) -> None:
         self._check_state = state
@@ -366,49 +352,23 @@ class CTkCheckBox(CTkWidget):
 
         if self._variable is not None and not from_variable_callback:
             self._variable_callback_blocked = True
-            self._variable.set(self._onvalue if self._check_state is True else self._offvalue)
+            self._variable.set(self._onvalue if self._check_state else self._offvalue)
             self._variable_callback_blocked = False
 
-    def toggle(self, _: tkinter.Event | None = None) -> None:
+    def invoke(self, _: tkinter.Event | None = None) -> None:
+        """ Toggles the selection status if the widget is not disabled.\n
+        Can be called to simulate the user who clicks on the widget. """
         if self._state == tkinter.NORMAL:
             self.set(not self._check_state)
 
             if self._command is not None:
                 self._command()
 
-    def select(self, from_variable_callback: bool = False) -> None:
-        self.set(True, from_variable_callback)
+    def select(self) -> None:
+        self.set(True)
 
-    def deselect(self, from_variable_callback: bool = False) -> None:
-        self.set(False, from_variable_callback)
+    def deselect(self) -> None:
+        self.set(False)
 
     def get(self) -> int | float | str | bool:
-        return self._onvalue if self._check_state is True else self._offvalue
-
-    def bind(self,
-             sequence: str | None = None,
-             func: Callable[[tkinter.Event], None] | None = None,
-             add: str | bool = True) -> None:
-        """ called on the tkinter.Canvas """
-        if not (add == "+" or add is True):
-            raise ValueError("'add' argument can only be '+' or True to preserve internal callbacks")
-        self._canvas.bind(sequence, func, add=True)
-        self._text_label.bind(sequence, func, add=True)
-
-    def unbind(self, sequence: str, funcid: None = None) -> None:
-        """ called on the tkinter.Label and tkinter.Canvas """
-        if funcid is not None:
-            raise ValueError("'funcid' argument can only be None, because there is a bug in" +
-                             " tkinter and its not clear whether the internal callbacks will be unbinded or not")
-        self._canvas.unbind(sequence, None)
-        self._text_label.unbind(sequence, None)
-        self._create_bindings(sequence=sequence)  # restore internal callbacks for sequence
-
-    def focus(self) -> None:
-        return self._text_label.focus()
-
-    def focus_set(self) -> None:
-        return self._text_label.focus_set()
-
-    def focus_force(self) -> None:
-        return self._text_label.focus_force()
+        return self._onvalue if self._check_state else self._offvalue

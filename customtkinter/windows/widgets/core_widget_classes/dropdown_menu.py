@@ -4,7 +4,7 @@ import tkinter
 import sys
 import copy
 from typing import Any, Callable
-from typing_extensions import Literal, TypedDict, Unpack
+from typing_extensions import TypedDict, Unpack
 
 from ..appearance_mode import CTkAppearanceModeBaseClass
 from ..scaling import CTkScalingBaseClass
@@ -77,8 +77,8 @@ class DropdownMenu(tkinter.Menu, CTkAppearanceModeBaseClass, CTkScalingBaseClass
             super().configure(tearoff=False,
                               relief="flat",
                               activebackground=self._apply_appearance_mode(self._theme_info["hover_color"]),
-                              borderwidth=self._apply_widget_scaling(4),
-                              activeborderwidth=self._apply_widget_scaling(4),
+                              borderwidth=self._apply_scaling(4),
+                              activeborderwidth=self._apply_scaling(4),
                               bg=self._apply_appearance_mode(self._theme_info["fg_color"]),
                               fg=self._apply_appearance_mode(self._theme_info["text_color"]),
                               activeforeground=self._apply_appearance_mode(self._theme_info["text_color"]),
@@ -118,9 +118,9 @@ class DropdownMenu(tkinter.Menu, CTkAppearanceModeBaseClass, CTkScalingBaseClass
 
     def open(self, x: int | float, y: int | float) -> None:
         if sys.platform == "darwin":
-            y += self._apply_widget_scaling(8)
+            y += self._apply_scaling(8)
         else:
-            y += self._apply_widget_scaling(3)
+            y += self._apply_scaling(3)
 
         if sys.platform == "darwin" or sys.platform.startswith("win"):
             self.post(int(x), int(y))
@@ -181,7 +181,6 @@ class DropdownMenu(tkinter.Menu, CTkAppearanceModeBaseClass, CTkScalingBaseClass
         super()._set_scaling(new_widget_scaling, new_window_scaling)
         self._configure_menu_for_platforms()
 
-    def _set_appearance_mode(self, mode: Literal["light", "dark"]) -> None:
-        """ colors won't update on appearance mode change when dropdown is open, because it's not necessary """
-        super()._set_appearance_mode(mode)
+    def _set_appearance_mode(self) -> None:
+        # colors won't update on appearance mode change when dropdown is open, because it's not necessary
         self._configure_menu_for_platforms()

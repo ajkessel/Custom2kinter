@@ -13,7 +13,7 @@ from .widgets.appearance_mode import CTkAppearanceModeBaseClass
 from .widgets.scaling import CTkScalingBaseClass
 from .widgets.core_widget_classes import CTkContainer
 from .widgets.theme import ColorType, ThemeManager
-from .widgets.utility.utility_functions import pop_from_dict_by_set, check_kwargs_empty
+from .widgets.utility import pop_from_dict_by_set, check_kwargs_empty, parse_geometry_string
 
 CTK_PARENT_CLASS: type = tkinter.Tk
 
@@ -57,13 +57,14 @@ class CTk(CTK_PARENT_CLASS, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTk
         CTkScalingBaseClass.__init__(self, scaling_type="window")
         CTkContainer.__init__(self, fg_color=self._theme_info["fg_color"])
 
-        self._current_width: int = 600  # initial window size, independent of scaling
-        self._current_height: int = 500
+        # _desired_width and _desired_height represent desired size set by geometry or when resizing the window and
+        # don't consider the scaling factor
+        self._desired_width: int = 600
+        self._desired_height: int = 500
         self._min_width: int = 0
         self._min_height: int = 0
         self._max_width: int = 1_000_000
         self._max_height: int = 1_000_000
-        self._last_resizable_args: tuple[list, dict] | None = None  # (args, kwargs)
 
         # set bg of tkinter.Tk
         super().configure(bg=self._apply_appearance_mode(self._fg_color))
@@ -71,23 +72,20 @@ class CTk(CTK_PARENT_CLASS, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTk
         # set title
         super().title(self._theme_info["title"])
 
-        # indicator variables
+        # functionality
         self._iconbitmap_method_called: bool = False  # indicates if wm_iconbitmap method got called
         self._state_before_windows_set_titlebar_color: str | None = None
         self._window_exists: bool = False  # indicates if the window is already shown through update() or mainloop() after init
         self._withdraw_called_before_window_exists: bool = False  # indicates if withdraw() was called before window is first shown through update() or mainloop()
         self._iconify_called_before_window_exists: bool = False  # indicates if iconify() was called before window is first shown through update() or mainloop()
         self._block_update_dimensions_event: bool = False
-
-        # save focus before calling withdraw
         self.focused_widget_before_widthdraw: tkinter.Misc | None = None
 
-        # set CustomTkinter titlebar icon (Windows only)
+        # Windows only
         if sys.platform.startswith("win"):
+            # set CustomTkinter titlebar icon
             self.after(200, self._windows_set_titlebar_icon)
-
-        # set titlebar color (Windows only)
-        if sys.platform.startswith("win"):
+            # set titlebar color
             self._windows_set_titlebar_color(self._get_appearance_mode())
 
         self.bind("<Configure>", self._update_dimensions_event)
@@ -113,25 +111,18 @@ class CTk(CTK_PARENT_CLASS, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTk
 
     def _update_dimensions_event(self, _: tkinter.Event) -> None:
         if not self._block_update_dimensions_event:
-
-            detected_width = super().winfo_width()  # detect current window size
-            detected_height = super().winfo_height()
-
-            # detected_width = event.width
-            # detected_height = event.height
-
-            if self._current_width != self._reverse_window_scaling(detected_width) or self._current_height != self._reverse_window_scaling(detected_height):
-                self._current_width = self._reverse_window_scaling(detected_width)  # adjust current size according to new size given by event
-                self._current_height = self._reverse_window_scaling(detected_height)  # _current_width and _current_height are independent of the scale
+            # detect current window size
+            self._desired_width = self._reverse_scaling(super().winfo_width())
+            self._desired_height = self._reverse_scaling(super().winfo_height())
 
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
 
         # Force new dimensions on window by using min, max, and geometry. Without min, max it won't work.
-        super().minsize(self._apply_window_scaling(self._current_width), self._apply_window_scaling(self._current_height))
-        super().maxsize(self._apply_window_scaling(self._current_width), self._apply_window_scaling(self._current_height))
+        super().minsize(self._apply_scaling(self._desired_width), self._apply_scaling(self._desired_height))
+        super().maxsize(self._apply_scaling(self._desired_width), self._apply_scaling(self._desired_height))
 
-        super().geometry(f"{self._apply_window_scaling(self._current_width)}x{self._apply_window_scaling(self._current_height)}")
+        super().geometry(f"{self._apply_scaling(self._desired_width)}x{self._apply_scaling(self._desired_height)}")
 
         # set new scaled min and max with delay (delay prevents weird bug where window dimensions snap to unscaled dimensions when mouse releases window)
         self.after(1000, self._set_scaled_min_max)  # Why 1000ms delay? Experience! (Everything tested on Windows 11)
@@ -143,28 +134,25 @@ class CTk(CTK_PARENT_CLASS, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTk
         self._block_update_dimensions_event = False
 
     def _set_scaled_min_max(self) -> None:
-        super().minsize(self._apply_window_scaling(self._min_width), self._apply_window_scaling(self._min_height))
-        super().maxsize(self._apply_window_scaling(self._max_width), self._apply_window_scaling(self._max_height))
+        super().minsize(self._apply_scaling(self._min_width), self._apply_scaling(self._min_height))
+        super().maxsize(self._apply_scaling(self._max_width), self._apply_scaling(self._max_height))
 
     def withdraw(self) -> None:
-        if self._window_exists is False:
+        if not self._window_exists:
             self._withdraw_called_before_window_exists = True
         super().withdraw()
 
     def iconify(self) -> None:
-        if self._window_exists is False:
+        if not self._window_exists:
             self._iconify_called_before_window_exists = True
         super().iconify()
 
     def update(self) -> None:
-        if self._window_exists is False:
+        if not self._window_exists:
             if sys.platform.startswith("win"):
                 if not self._withdraw_called_before_window_exists and not self._iconify_called_before_window_exists:
-                    # print("window dont exists -> deiconify in update")
                     self.deiconify()
-
             self._window_exists = True
-
         super().update()
 
     def mainloop(self, *args: Any, **kwargs: Any) -> None:
@@ -176,12 +164,10 @@ class CTk(CTK_PARENT_CLASS, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTk
                     self.deiconify()
 
             self._window_exists = True
-
         super().mainloop(*args, **kwargs)
 
     def resizable(self, width: bool | None = None, height: bool | None = None) -> tuple[bool, bool] | None:
         current_resizable_values = super().resizable(width, height)
-        self._last_resizable_args = ([], {"width": width, "height": height})
 
         if sys.platform.startswith("win"):
             self._windows_set_titlebar_color(self._get_appearance_mode())
@@ -191,34 +177,31 @@ class CTk(CTK_PARENT_CLASS, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTk
     def minsize(self, width: int | None = None, height: int | None = None) -> None:
         if width is not None:
             self._min_width = width
-            if self._current_width < width:
-                self._current_width = width
+            self._desired_width = max(self._desired_width, width)
         if height is not None:
             self._min_height = height
-            if self._current_height < height:
-                self._current_height = height
-        super().minsize(self._apply_window_scaling(self._min_width), self._apply_window_scaling(self._min_height))
+            self._desired_height = max(self._desired_width, height)
+        super().minsize(self._apply_scaling(self._min_width), self._apply_scaling(self._min_height))
 
     def maxsize(self, width: int | None = None, height: int | None = None) -> None:
         if width is not None:
             self._max_width = width
-            if self._current_width > width:
-                self._current_width = width
+            self._desired_width = min(self._desired_width, width)
         if height is not None:
             self._max_height = height
-            if self._current_height > height:
-                self._current_height = height
-        super().maxsize(self._apply_window_scaling(self._max_width), self._apply_window_scaling(self._max_height))
+            self._desired_height = min(self._desired_width, height)
+        super().maxsize(self._apply_scaling(self._max_width), self._apply_scaling(self._max_height))
 
     def geometry(self, geometry_string: str | None = None) -> str | None:
         if geometry_string is not None:
             super().geometry(self._apply_geometry_scaling(geometry_string))
 
             # update width and height attributes
-            width, height, _, _ = self._parse_geometry_string(geometry_string)
+            width, height, _, _ = parse_geometry_string(geometry_string)
             if width is not None and height is not None:
-                self._current_width = max(self._min_width, min(width, self._max_width))  # bound value between min and max
-                self._current_height = max(self._min_height, min(height, self._max_height))
+                # bound values between min and max
+                self._desired_width = max(self._min_width, min(width, self._max_width))
+                self._desired_height = max(self._min_height, min(height, self._max_height))
             return None
         else:
             return self._reverse_geometry_scaling(super().geometry())
@@ -298,9 +281,9 @@ class CTk(CTK_PARENT_CLASS, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTk
                 super().update()
 
             if appearance_mode.lower() == "dark":
-                value = 1
+                value = ctypes.c_int(1)
             elif appearance_mode.lower() == "light":
-                value = 0
+                value = ctypes.c_int(0)
             else:
                 return
 
@@ -311,13 +294,13 @@ class CTk(CTK_PARENT_CLASS, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTk
 
                 # try with DWMWA_USE_IMMERSIVE_DARK_MODE
                 if ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
-                                                              ctypes.byref(ctypes.c_int(value)),
-                                                              ctypes.sizeof(ctypes.c_int(value))) != 0:
+                                                              ctypes.byref(value),
+                                                              ctypes.sizeof(value)) != 0:
 
                     # try with DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20h1
                     ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1,
-                                                               ctypes.byref(ctypes.c_int(value)),
-                                                               ctypes.sizeof(ctypes.c_int(value)))
+                                                               ctypes.byref(value),
+                                                               ctypes.sizeof(value))
 
             except Exception as err:
                 print(err)
@@ -331,17 +314,13 @@ class CTk(CTK_PARENT_CLASS, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTk
                     self.state("zoomed")
                 else:
                     self.state(self._state_before_windows_set_titlebar_color)  # other states
-            else:
-                pass  # wait for update or mainloop to be called
 
             if self.focused_widget_before_widthdraw is not None:
-                self.after(1, self.focused_widget_before_widthdraw.focus)
+                self.after(10, self.focused_widget_before_widthdraw.focus)
                 self.focused_widget_before_widthdraw = None
 
-    def _set_appearance_mode(self, mode: Literal["light", "dark"]) -> None:
-        super()._set_appearance_mode(mode)
-
+    def _set_appearance_mode(self) -> None:
         if sys.platform.startswith("win"):
-            self._windows_set_titlebar_color(mode)
+            self._windows_set_titlebar_color(self._get_appearance_mode())
 
         super().configure(bg=self._apply_appearance_mode(self._fg_color))

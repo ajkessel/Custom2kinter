@@ -90,11 +90,11 @@ class CTkFont(Font):
                              "font='<theme_key>'\n")
 
     def add_size_configure_callback(self, callback: Callable[[], None]) -> None:
-        """ add function, that gets called when font got configured """
+        """ Adds a function that gets called when the font gets configured """
         self._size_configure_callback_list.append(callback)
 
     def remove_size_configure_callback(self, callback: Callable[[], None]) -> None:
-        """ remove function, that gets called when font got configured """
+        """ Removes a function that gets called when the font gets configured """
         try:
             self._size_configure_callback_list.remove(callback)
         except ValueError:
@@ -135,8 +135,8 @@ class CTkFont(Font):
         return copy.deepcopy(self)
 
     def _get_style_string(self) -> str:
-        weight = super().cget('weight')
-        slant = self._theme_info['slant']
+        weight = super().cget("weight")
+        slant = self._theme_info["slant"]
         underline = " underline" if self._theme_info["underline"] else ""
         overstrike = " overstrike" if self._theme_info["overstrike"] else ""
         return f"{weight} {slant}{underline}{overstrike}"

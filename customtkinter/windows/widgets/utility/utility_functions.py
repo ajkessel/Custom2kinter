@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import tkinter
+import sys
+import re
 from typing import TypeVar
+from typing_extensions import Literal
 
 KT = TypeVar("KT")
 VT = TypeVar("VT")
@@ -36,3 +40,36 @@ def deep_update(base: dict[KT, VT], new: dict[KT, VT]) -> None:
             deep_update(base.setdefault(key, {}), value)
         else:
             base[key] = value
+
+
+def parse_geometry_string(geometry_string: str) -> tuple[int | None, ...]:
+    #                 index:   1                   2           3          4             5       6
+    # regex group structure: ('<width>x<height>', '<width>', '<height>', '+-<x>+-<y>', '-<x>', '-<y>')
+    result = re.search(r"((\d+)x(\d+)){0,1}(\+{0,1}([+-]{0,1}\d+)\+{0,1}([+-]{0,1}\d+)){0,1}", geometry_string)
+
+    width = int(result.group(2)) if result.group(2) is not None else None
+    height = int(result.group(3)) if result.group(3) is not None else None
+    x = int(result.group(5)) if result.group(5) is not None else None
+    y = int(result.group(6)) if result.group(6) is not None else None
+
+    return width, height, x, y
+
+
+def get_window_root_of_widget(widget: tkinter.Misc) -> tkinter.Tk | tkinter.Toplevel:
+    current_widget = widget
+    while not isinstance(current_widget, (tkinter.Tk, tkinter.Toplevel)):
+        current_widget = current_widget.master
+    return current_widget
+
+
+def get_proper_cursor(mode: Literal["normal", "clickable"]) -> str | None:
+    retval = None
+    if mode == "normal":
+        if sys.platform == "darwin" or sys.platform.startswith("win"):
+            retval="arrow"
+    elif mode == "clickable":
+        if sys.platform == "darwin":
+            retval="pointinghand"
+        elif sys.platform.startswith("win"):
+            retval="hand2"
+    return retval

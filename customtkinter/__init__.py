@@ -137,7 +137,7 @@ class _Showroom(CTk):
                                               command=self._change_theme_event)
         self.theme_optionmenu.set(ThemeManager._last_loaded_theme)
         self.appearance_mode_label = CTkLabel(self.sidebar_frame, text="Appearance Mode:", anchor="w")
-        self.appearance_mode_optionemenu = CTkOptionMenu(self.sidebar_frame, values=["Light", "Dark", "System"],
+        self.appearance_mode_optionemenu = CTkOptionMenu(self.sidebar_frame, values=["light", "dark", "system"],
                                                          command=self._change_appearance_mode_event)
         self.appearance_mode_optionemenu.set(get_appearance_mode())
         self.scaling_label = CTkLabel(self.sidebar_frame, text="UI Scaling:", anchor="w")
@@ -164,7 +164,7 @@ class _Showroom(CTk):
         # create main tabview
         self.main_tabview = CTkTabview(self)
 
-        self.main_tabview.pack(side="left", fill="both", expand=True, padx=5, pady=(0, 5))
+        self.main_tabview.pack(side="left", fill="both", expand=True, padx=5, pady=5)
 
         # buttons
         self.buttons_frame: CTkFrame = self.main_tabview.add("Buttons")
@@ -185,8 +185,10 @@ class _Showroom(CTk):
         self.combobox_2 = CTkComboBox(self.choices_frame, state="readonly",
                                       values=["readonly", "Value 2", "Value 3", "User can only", "choose a value"])
         self.combobox_2.set("readonly")
-        self.optionmenu = CTkOptionMenu(self.choices_frame, dynamic_resizing=False,
-                                        values=["CTkOptionMenu", "Value 2", "Value 3"])
+        self.combobox_3 = CTkComboBox(self.choices_frame, state="disabled", values=["disabled"])
+        self.combobox_3.set("disabled")
+        self.optionmenu1 = CTkOptionMenu(self.choices_frame, values=["CTkOptionMenu", "Value 2", "Value 3"])
+        self.optionmenu2 = CTkOptionMenu(self.choices_frame, values=["disabled", "Value 2", "Value 3"], state="disabled")
         self.seg_button1 = CTkSegmentedButton(self.choices_frame, values=["CTkSegmentedButton", "Value 2", "Value 3"])
         self.seg_button1.set("CTkSegmentedButton")
         self.seg_button2 = CTkSegmentedButton(self.choices_frame, values=["vertical", "Value 2", "Value 3"], orientation="vertical")
@@ -194,19 +196,23 @@ class _Showroom(CTk):
 
         self.combobox_1.pack(padx=20, pady=(self.SPACING, 5))
         self.combobox_2.pack(padx=20, pady=(0, 5))
-        self.optionmenu.pack(padx=20, pady=(self.SPACING, 5))
+        self.combobox_3.pack(padx=20, pady=(0, 5))
+        self.optionmenu1.pack(padx=20, pady=(self.SPACING, 5))
+        self.optionmenu2.pack(padx=20, pady=(0, 5))
         self.seg_button1.pack(padx=20, pady=(self.SPACING, 5))
         self.seg_button2.pack(padx=20, pady=(0, 5))
 
         # text
         self.text_frame: CTkFrame = self.main_tabview.add("Text")
         self.label = CTkLabel(self.text_frame, text="CTkLabel", height=1)
-        self.entry = CTkEntry(self.text_frame, placeholder_text="CTkEntry")
+        self.entry_1 = CTkEntry(self.text_frame, placeholder_text="CTkEntry")
+        self.entry_2 = CTkEntry(self.text_frame, placeholder_text="Password", show="*", justify="center")
         self.textbox = CTkTextbox(self.text_frame, width=320)
         self.textbox.insert("0.0", "CTkTextbox\n\n" + "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.\n\n" * 20)
 
         self.label.pack(padx=20, pady=(self.SPACING, 5))
-        self.entry.pack(padx=20, pady=(self.SPACING, 5))
+        self.entry_1.pack(padx=20, pady=(self.SPACING, 5))
+        self.entry_2.pack(padx=20, pady=(0, 5))
         self.textbox.pack(padx=20, pady=(self.SPACING, 5))
 
         # boolean
@@ -278,15 +284,14 @@ class _Showroom(CTk):
 
         # frames
         self.frames_frame: CTkFrame = self.main_tabview.add("Frames")
-        self.scrollable_frame = CTkScrollableFrame(self.frames_frame, label={"text": "CTkScrollableFrame"},
-                                                   frame={"fg_color": self.cget("fg_color")})
-        self.tabview = CTkTabview(self.frames_frame, fg_color=self.cget("fg_color"))
+        self.scrollable_frame = CTkScrollableFrame(self.frames_frame, label={"text": "CTkScrollableFrame"})
+        self.tabview = CTkTabview(self.frames_frame)
         tab1 = self.tabview.add("CTkTabview")
         tab2 = self.tabview.add("Tab 2")
         tab3 = self.tabview.add("Tab 3")
-        CTkButton(tab1, text="Widget on 1st Tab").pack()
-        CTkCheckBox(tab2, text="Widget on 2nd Tab").pack()
-        CTkSwitch(tab3, text="Widget on 3rd Tab").pack()
+        CTkButton(tab1, text="Widget on 1st Tab").pack(pady = 5)
+        CTkCheckBox(tab2, text="Widget on 2nd Tab").pack(pady = 5)
+        CTkSwitch(tab3, text="Widget on 3rd Tab").pack(pady = 5)
 
         for i in range(100):
             switch = CTkSwitch(self.scrollable_frame, text=f"CTkSwitch {i+1}")
@@ -314,7 +319,7 @@ class _Showroom(CTk):
         dialog.get_input()
 
     def _change_appearance_mode_event(self, new_appearance_mode: str) -> None:
-        set_appearance_mode(new_appearance_mode.lower())
+        set_appearance_mode(new_appearance_mode)
 
     def _change_scaling_event(self, new_scaling: str) -> None:
         new_scaling_float = int(new_scaling.replace("%", "")) / 100

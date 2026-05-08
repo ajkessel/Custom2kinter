@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import tkinter
-import sys
 from typing import Any, Callable, TYPE_CHECKING
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkContainer, CTkWidget
 from .core_rendering import CTkCanvas, BackgroundCorners, RoundedRect
-from .theme import ColorType, TransparentColorType, ThemeManager
+from .theme import AnchorType, ColorType, TransparentColorType, ThemeManager
 from .font.ctk_font import CTkFont, FontType
 from .image import CTkImage
+from .utility import get_proper_cursor
 
 if TYPE_CHECKING:
     from PIL import ImageTk
@@ -32,7 +32,7 @@ class CTkButtonArgs(TypedDict, total=False):
     round_height_to_even_numbers: bool
     text: str
     font: FontType
-    anchor: str  #center or combination of n, e, s, w
+    anchor: AnchorType
     compound: Literal["left", "right", "top", "bottom"]
 
 
@@ -67,7 +67,7 @@ class CTkButton(CTkWidget):
                          width=self._theme_info["width"],
                          height=self._theme_info["height"])
 
-        self._theme_info["corner_radius"] = min(self._theme_info["corner_radius"], round(self._current_height / 2))
+        self._theme_info["corner_radius"] = min(self._theme_info["corner_radius"], round(self._desired_height / 2))
 
         # rendering options
         self._background_corner_colors: tuple[ColorType, ...] | None = background_corner_colors
@@ -93,8 +93,8 @@ class CTkButton(CTkWidget):
         # canvas and draw engine
         self._canvas = CTkCanvas(master=self,
                                  highlightthickness=0,
-                                 width=self._apply_widget_scaling(self._desired_width),
-                                 height=self._apply_widget_scaling(self._desired_height))
+                                 width=self._apply_scaling(self._desired_width),
+                                 height=self._apply_scaling(self._desired_height))
         self._canvas.grid(row=0, column=0, rowspan=5, columnspan=5, sticky="nsew")
         self._background_corners = BackgroundCorners(self._canvas,
                                                      self._theme_info["round_width_to_even_numbers"],
@@ -102,6 +102,8 @@ class CTkButton(CTkWidget):
         self._rounded_rect = RoundedRect(self._canvas,
                                          self._theme_info["round_width_to_even_numbers"],
                                          self._theme_info["round_height_to_even_numbers"])
+        self._bind_targets.append(self._canvas)
+
         # configure cursor and initial draw
         self._create_bindings()
         self._set_cursor()
@@ -110,53 +112,42 @@ class CTkButton(CTkWidget):
     def _create_bindings(self, sequence: str | None = None) -> None:
         """ set necessary bindings for functionality of widget, will overwrite other bindings """
 
-        if sequence is None or sequence == "<Enter>":
-            self._canvas.bind("<Enter>", self._on_enter)
+        targets = [self._canvas]
+        if self._text_label is not None:
+            targets.append(self._text_label)
+        if self._image_label is not None:
+            targets.append(self._image_label)
 
-            if self._text_label is not None:
-                self._text_label.bind("<Enter>", self._on_enter)
-            if self._image_label is not None:
-                self._image_label.bind("<Enter>", self._on_enter)
-
-        if sequence is None or sequence == "<Leave>":
-            self._canvas.bind("<Leave>", self._on_leave)
-
-            if self._text_label is not None:
-                self._text_label.bind("<Leave>", self._on_leave)
-            if self._image_label is not None:
-                self._image_label.bind("<Leave>", self._on_leave)
-
-        if sequence is None or sequence == "<ButtonRelease-1>":
-            self._canvas.bind("<ButtonRelease-1>", self._on_release)
-
-            if self._text_label is not None:
-                self._text_label.bind("<ButtonRelease-1>", self._on_release)
-            if self._image_label is not None:
-                self._image_label.bind("<ButtonRelease-1>", self._on_release)
+        for widget in targets:
+            if sequence is None or sequence == "<Enter>":
+                widget.bind("<Enter>", self._on_enter)
+            if sequence is None or sequence == "<Leave>":
+                widget.bind("<Leave>", self._on_leave)
+            if sequence is None or sequence == "<ButtonRelease-1>":
+                widget.bind("<ButtonRelease-1>", self._on_release)
 
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
 
         self._create_grid()
+        self._update_image()
 
         if self._text_label is not None:
             self._text_label.configure(font=self._apply_font_scaling(self._font))
 
-        self._update_image()
-
-        self._canvas.configure(width=self._apply_widget_scaling(self._desired_width),
-                               height=self._apply_widget_scaling(self._desired_height))
+        self._canvas.configure(width=self._apply_scaling(self._desired_width),
+                               height=self._apply_scaling(self._desired_height))
         self._draw()
 
-    def _set_appearance_mode(self, mode: Literal["light", "dark"]) -> None:
-        super()._set_appearance_mode(mode)
+    def _set_appearance_mode(self) -> None:
+        super()._set_appearance_mode()
         self._update_image()
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
         super()._set_dimensions(width, height)
 
-        self._canvas.configure(width=self._apply_widget_scaling(self._desired_width),
-                               height=self._apply_widget_scaling(self._desired_height))
+        self._canvas.configure(width=self._apply_scaling(self._desired_width),
+                               height=self._apply_scaling(self._desired_height))
         self._draw()
 
     def _update_font(self) -> None:
@@ -172,21 +163,23 @@ class CTkButton(CTkWidget):
     def _update_image(self) -> None:
         if self._image_label is not None:
             if isinstance(self._image, CTkImage):
-                self._image_label.configure(image=self._image.create_scaled_photo_image(self._get_widget_scaling(),
+                self._image_label.configure(image=self._image.create_scaled_photo_image(self.get_scaling(),
                                                                                         self._get_appearance_mode()))
             elif self._image is not None:
                 self._image_label.configure(image=self._image)
 
     def destroy(self) -> None:
         self._font.remove_size_configure_callback(self._update_font)
+        if isinstance(self._image, CTkImage):
+            self._image.remove_configure_callback(self._update_image)
         super().destroy()
 
     def _draw(self, force_colors_update: bool = False) -> None:
         super()._draw(force_colors_update)
 
         if self._background_corner_colors is not None:
-            if (self._background_corners.update(self._apply_widget_scaling(self._current_width+1),
-                                                self._apply_widget_scaling(self._current_height+1)) or
+            if (self._background_corners.update(self._current_width,
+                                                self._current_height) or
                 force_colors_update):
                 self._background_corners.set_colors(self._apply_appearance_mode(self._background_corner_colors[0]),
                                                     self._apply_appearance_mode(self._background_corner_colors[1]),
@@ -195,21 +188,17 @@ class CTkButton(CTkWidget):
         else:
             self._background_corners.delete()
 
-        requires_recoloring = self._rounded_rect.update(self._apply_widget_scaling(self._current_width),
-                                                        self._apply_widget_scaling(self._current_height),
-                                                        self._apply_widget_scaling(self._theme_info["corner_radius"]),
-                                                        self._apply_widget_scaling(self._theme_info["border_width"]))
+        requires_recoloring = self._rounded_rect.update(self._current_width,
+                                                        self._current_height,
+                                                        self._apply_scaling(self._theme_info["corner_radius"]),
+                                                        self._apply_scaling(self._theme_info["border_width"]))
 
         if force_colors_update or requires_recoloring:
             self._background_corners.raise_()
             self._rounded_rect.raise_()
 
-            fg_color = self._theme_info["fg_color"]
-            if fg_color == "transparent":
-                fg_color = self._bg_color
-
             self._canvas.configure(bg=self._apply_appearance_mode(self._bg_color))
-            self._rounded_rect.set_main_color(self._apply_appearance_mode(fg_color))
+            self._rounded_rect.set_main_color(self._apply_appearance_mode(self._theme_info["fg_color"],if_transparent=self._bg_color))
             self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
 
         # create text label if text given
@@ -229,25 +218,22 @@ class CTkButton(CTkWidget):
                 self._text_label.bind("<Enter>", self._on_enter)
                 self._text_label.bind("<Leave>", self._on_leave)
                 self._text_label.bind("<ButtonRelease-1>", self._on_release)
-                self._text_label.bind("<ButtonRelease-1>", self._on_release)
+                self._bind_targets.append(self._text_label)
+                self._focus_target = self._text_label
 
             if force_colors_update:
-                # set text_label fg color (text color)
-                self._text_label.configure(fg=self._apply_appearance_mode(self._theme_info["text_color"]))
+                self._text_label.configure(bg=self._apply_appearance_mode(self._theme_info["fg_color"], if_transparent=self._bg_color))
 
-                if self._state == tkinter.DISABLED:
+                if self._state != tkinter.NORMAL:
                     self._text_label.configure(fg=self._apply_appearance_mode(self._theme_info["text_color_disabled"]))
                 else:
                     self._text_label.configure(fg=self._apply_appearance_mode(self._theme_info["text_color"]))
 
-                if self._apply_appearance_mode(self._theme_info["fg_color"]) == "transparent":
-                    self._text_label.configure(bg=self._apply_appearance_mode(self._bg_color))
-                else:
-                    self._text_label.configure(bg=self._apply_appearance_mode(self._theme_info["fg_color"]))
-
         else:
             # delete text_label if no text given
             if self._text_label is not None:
+                self._bind_targets.remove(self._text_label)
+                self._focus_target = None
                 self._text_label.destroy()
                 self._text_label = None
                 self._create_grid()
@@ -256,24 +242,26 @@ class CTkButton(CTkWidget):
         if self._image is not None:
             if self._image_label is None:
                 self._image_label = tkinter.Label(master=self, anchor=self._theme_info["anchor"])
-                self._update_image()  # set image
+                self._update_image()
                 self._create_grid()
 
                 self._image_label.bind("<Enter>", self._on_enter)
                 self._image_label.bind("<Leave>", self._on_leave)
                 self._image_label.bind("<ButtonRelease-1>", self._on_release)
-                self._image_label.bind("<ButtonRelease-1>", self._on_release)
+                self._bind_targets.append(self._image_label)
+                if self._focus_target is None:
+                    self._focus_target = self._image_label
 
             if force_colors_update:
                 # set image_label bg color (background color of label)
-                if self._apply_appearance_mode(self._theme_info["fg_color"]) == "transparent":
-                    self._image_label.configure(bg=self._apply_appearance_mode(self._bg_color))
-                else:
-                    self._image_label.configure(bg=self._apply_appearance_mode(self._theme_info["fg_color"]))
+                self._image_label.configure(bg=self._apply_appearance_mode(self._theme_info["fg_color"], if_transparent=self._bg_color))
 
         else:
-            # delete text_label if no text given
+            # delete image_label if no image given
             if self._image_label is not None:
+                self._bind_targets.remove(self._image_label)
+                if self._text_label is None:
+                    self._focus_target = None
                 self._image_label.destroy()
                 self._image_label = None
                 self._create_grid()
@@ -297,8 +285,8 @@ class CTkButton(CTkWidget):
             if "w" in anchor:
                 e_padding_weight, w_padding_weight = 0, 1000
 
-        scaled_minsize_rows = self._apply_widget_scaling(max(self._theme_info["border_width"] + 1, self._theme_info["border_spacing"]))
-        scaled_minsize_columns = self._apply_widget_scaling(max(self._theme_info["corner_radius"], self._theme_info["border_width"] + 1, self._theme_info["border_spacing"]))
+        scaled_minsize_rows = self._apply_scaling(max(self._theme_info["border_width"] + 1, self._theme_info["border_spacing"]))
+        scaled_minsize_columns = self._apply_scaling(max(self._theme_info["corner_radius"], self._theme_info["border_width"] + 1, self._theme_info["border_spacing"]))
         compound = self._theme_info["compound"]
 
         self.grid_rowconfigure(0, weight=n_padding_weight, minsize=scaled_minsize_rows)
@@ -309,7 +297,7 @@ class CTkButton(CTkWidget):
         if compound in ("right", "left"):
             self.grid_rowconfigure(2, weight=1)
             if self._image_label is not None and self._text_label is not None:
-                self.grid_columnconfigure(2, weight=0, minsize=self._apply_widget_scaling(self._image_label_spacing))
+                self.grid_columnconfigure(2, weight=0, minsize=self._apply_scaling(self._image_label_spacing))
             else:
                 self.grid_columnconfigure(2, weight=0, minsize=0)
 
@@ -318,7 +306,7 @@ class CTkButton(CTkWidget):
         else:
             self.grid_columnconfigure(2, weight=1)
             if self._image_label is not None and self._text_label is not None:
-                self.grid_rowconfigure(2, weight=0, minsize=self._apply_widget_scaling(self._image_label_spacing))
+                self.grid_rowconfigure(2, weight=0, minsize=self._apply_scaling(self._image_label_spacing))
             else:
                 self.grid_rowconfigure(2, weight=0, minsize=0)
 
@@ -461,31 +449,21 @@ class CTkButton(CTkWidget):
             return super().cget(attribute_name)
 
     def _set_cursor(self) -> None:
-        if self._cursor_manipulation_enabled:
-            if self._state == tkinter.DISABLED:
-                if sys.platform == "darwin" and self._command is not None:
-                    self.configure(cursor="arrow")
-                elif sys.platform.startswith("win") and self._command is not None:
-                    self.configure(cursor="arrow")
-
-            elif self._state == tkinter.NORMAL:
-                if sys.platform == "darwin" and self._command is not None:
-                    self.configure(cursor="pointinghand")
-                elif sys.platform.startswith("win") and self._command is not None:
-                    self.configure(cursor="hand2")
+        if self._command is None or self._state != tkinter.NORMAL:
+            cursor = get_proper_cursor("normal")
+        else:
+            cursor = get_proper_cursor("clickable")
+        if cursor is not None:
+            self.configure(cursor=cursor)
 
     def _on_enter(self, _: tkinter.Event | None = None) -> None:
         self._mouse_inside = True
-        if self._theme_info["hover"] is True and self._state == "normal":
+        if self._theme_info["hover"] and self._state == tkinter.NORMAL:
             hover_color = self._apply_appearance_mode(self._theme_info["hover_color"])
 
             self._rounded_rect.set_main_color(hover_color)
-
-            # set text_label bg color to button hover color
             if self._text_label is not None:
                 self._text_label.configure(bg=hover_color)
-
-            # set image_label bg color to button hover color
             if self._image_label is not None:
                 self._image_label.configure(bg=hover_color)
 
@@ -493,19 +471,11 @@ class CTkButton(CTkWidget):
         self._mouse_inside = False
         self._click_animation_running = False
 
-        if self._theme_info["fg_color"] == "transparent":
-            fg_color = self._apply_appearance_mode(self._bg_color)
-        else:
-            fg_color = self._apply_appearance_mode(self._theme_info["fg_color"])
+        fg_color = self._apply_appearance_mode(self._theme_info["fg_color"], if_transparent=self._bg_color)
 
-        # set color of inner button parts
         self._rounded_rect.set_main_color(fg_color)
-
-        # set text_label bg color (label color)
         if self._text_label is not None:
             self._text_label.configure(bg=fg_color)
-
-        # set image_label bg color (image bg color)
         if self._image_label is not None:
             self._image_label.configure(bg=fg_color)
 
@@ -514,56 +484,16 @@ class CTkButton(CTkWidget):
             self._on_enter()
 
     def _on_release(self, _: tkinter.Event) -> None:
-        if self._mouse_inside and self._state != tkinter.DISABLED:
+        if self._mouse_inside and self._state == tkinter.NORMAL:
             # click animation: change color with .on_leave() and back to normal after 100ms with click_animation()
             self._on_leave()
             self._click_animation_running = True
             self.after(100, self._click_animation)
-
-            if self._command is not None:
-                self._command()
+            self.invoke()
 
     def invoke(self) -> None:
-        """ calls command function if button is not disabled """
-        if self._state != tkinter.DISABLED:
+        """ Calls command function if button is not disabled.\n
+        Can be called to simulate the user who clicks on the widget. """
+        if self._state == tkinter.NORMAL:
             if self._command is not None:
                 self._command()
-
-    def bind(self,
-             sequence: str | None = None,
-             func: Callable[[tkinter.Event], None] | None = None,
-             add: str | bool = True) -> None:
-        """ called on the tkinter.Canvas """
-
-        if not (add == "+" or add is True):
-            raise ValueError("'add' argument can only be '+' or True to preserve internal callbacks")
-
-        self._canvas.bind(sequence, func, add=True)
-        if self._text_label is not None:
-            self._text_label.bind(sequence, func, add=True)
-        if self._image_label is not None:
-            self._image_label.bind(sequence, func, add=True)
-
-    def unbind(self, sequence: str, funcid: None = None) -> None:
-        """ called on the tkinter.Label and tkinter.Canvas """
-
-        if funcid is not None:
-            raise ValueError("'funcid' argument can only be None, because there is a bug in" +
-                             " tkinter and its not clear whether the internal callbacks will be unbinded or not")
-
-        self._canvas.unbind(sequence, None)
-        if self._text_label is not None:
-            self._text_label.unbind(sequence, None)
-        if self._image_label is not None:
-            self._image_label.unbind(sequence, None)
-
-        self._create_bindings(sequence=sequence)  # restore internal callbacks for sequence
-
-    def focus(self) -> None:
-        return self._text_label.focus()
-
-    def focus_set(self) -> None:
-        return self._text_label.focus_set()
-
-    def focus_force(self) -> None:
-        return self._text_label.focus_force()

@@ -19,12 +19,12 @@ class CTkCanvas(tkinter.Canvas):
 
     The aa-circles are created by choosing a character from the custom created and loaded
     font 'CustomTkinter_shapes_font'. It contains circle shapes with different sizes filling
-    either the whole character space or just pert of it (characters A to R). Circles with a smaller
+    either the whole character space or just part of it (characters A to R). Circles with a smaller
     radius need a smaller circle character to look correct when rendered on the canvas.
 
     For an optimal result, the draw-engine creates two aa-circles on top of each other, while
-    one is rotated by 90 degrees. This helps to make the circle look more symetric, which is
-    not can be a problem when using only a single circle character.
+    one is rotated by 90 degrees. This helps to make the circle look more symetric, which
+    can be a problem when using only a single circle character.
     """
 
     radius_to_char_fine: dict[int, str] = {}  # dict to map radius to font circle character
@@ -93,8 +93,7 @@ class CTkCanvas(tkinter.Canvas):
 
     def itemconfig(self, tag_or_id: str | int, *args: Any, **kwargs: Any) -> None:
         kwargs_except_outline = kwargs.copy()
-        if "outline" in kwargs_except_outline:
-            del kwargs_except_outline["outline"]
+        kwargs_except_outline.pop("outline", None)
 
         if isinstance(tag_or_id, int):
             if tag_or_id in self._aa_circle_canvas_ids:

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import tkinter
-import sys
 from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
@@ -9,6 +8,7 @@ from .core_widget_classes import CTkContainer, CTkWidget
 from .core_rendering import CTkCanvas, RoundedRect, Slider
 from .font.ctk_font import CTkFont, FontType
 from .theme import ColorType, TransparentColorType, ThemeManager
+from .utility import get_proper_cursor
 
 
 class CTkSwitchArgs(TypedDict, total=False):
@@ -80,23 +80,24 @@ class CTkSwitch(CTkWidget):
 
         # configure grid system (3x1)
         self.grid_columnconfigure(0, weight=0)
-        self.grid_columnconfigure(1, weight=0, minsize=self._apply_widget_scaling(6))
+        self.grid_columnconfigure(1, weight=0, minsize=self._apply_scaling(6))
         self.grid_columnconfigure(2, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
         self._bg_canvas = CTkCanvas(master=self,
                                     highlightthickness=0,
-                                    width=self._apply_widget_scaling(self._current_width),
-                                    height=self._apply_widget_scaling(self._current_height))
+                                    width=self._apply_scaling(self._desired_width),
+                                    height=self._apply_scaling(self._desired_height))
         self._bg_canvas.grid(row=0, column=0, columnspan=3, sticky="nswe")
 
         self._canvas = CTkCanvas(master=self,
                                  highlightthickness=0,
-                                 width=self._apply_widget_scaling(self._theme_info["switch_width"]),
-                                 height=self._apply_widget_scaling(self._theme_info["switch_height"]))
+                                 width=self._apply_scaling(self._theme_info["switch_width"]),
+                                 height=self._apply_scaling(self._theme_info["switch_height"]))
         self._canvas.grid(row=0, column=0, sticky="")
         self._rounded_rect = RoundedRect(self._canvas)
         self._slider = Slider(self._canvas)
+        self._bind_targets.append(self._canvas)
 
         self._text_label = tkinter.Label(master=self,
                                          bd=0,
@@ -108,8 +109,10 @@ class CTkSwitch(CTkWidget):
                                          textvariable=self._textvariable)
         self._text_label.grid(row=0, column=2, sticky="w")
         self._text_label["anchor"] = "w"
+        self._bind_targets.append(self._text_label)
+        self._focus_target = self._text_label
 
-        if self._variable is not None and self._variable != "":
+        if self._variable is not None:
             self._variable_callback_name = self._variable.trace_add("write", self._variable_callback)
             self._check_state = self._variable.get() == self._onvalue
 
@@ -126,26 +129,26 @@ class CTkSwitch(CTkWidget):
             self._canvas.bind("<Leave>", self._on_leave)
             self._text_label.bind("<Leave>", self._on_leave)
         if sequence is None or sequence == "<Button-1>":
-            self._canvas.bind("<Button-1>", self.toggle)
-            self._text_label.bind("<Button-1>", self.toggle)
+            self._canvas.bind("<Button-1>", self.invoke)
+            self._text_label.bind("<Button-1>", self.invoke)
 
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
 
-        self.grid_columnconfigure(1, weight=0, minsize=self._apply_widget_scaling(6))
+        self.grid_columnconfigure(1, weight=0, minsize=self._apply_scaling(6))
         self._text_label.configure(font=self._apply_font_scaling(self._font))
 
-        self._bg_canvas.configure(width=self._apply_widget_scaling(self._desired_width),
-                                  height=self._apply_widget_scaling(self._desired_height))
-        self._canvas.configure(width=self._apply_widget_scaling(self._theme_info["switch_width"]),
-                               height=self._apply_widget_scaling(self._theme_info["switch_height"]))
+        self._bg_canvas.configure(width=self._apply_scaling(self._desired_width),
+                                  height=self._apply_scaling(self._desired_height))
+        self._canvas.configure(width=self._apply_scaling(self._theme_info["switch_width"]),
+                               height=self._apply_scaling(self._theme_info["switch_height"]))
         self._draw()
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
         super()._set_dimensions(width, height)
 
-        self._bg_canvas.configure(width=self._apply_widget_scaling(self._desired_width),
-                                  height=self._apply_widget_scaling(self._desired_height))
+        self._bg_canvas.configure(width=self._apply_scaling(self._desired_width),
+                                  height=self._apply_scaling(self._desired_height))
 
     def _update_font(self) -> None:
         """ pass font to tkinter widgets with applied font scaling and update grid with workaround """
@@ -165,43 +168,27 @@ class CTkSwitch(CTkWidget):
         super().destroy()
 
     def _set_cursor(self) -> None:
-        if self._cursor_manipulation_enabled:
-            if self._state == tkinter.DISABLED:
-                if sys.platform == "darwin":
-                    self._canvas.configure(cursor="arrow")
-                    if self._text_label is not None:
-                        self._text_label.configure(cursor="arrow")
-                elif sys.platform.startswith("win"):
-                    self._canvas.configure(cursor="arrow")
-                    if self._text_label is not None:
-                        self._text_label.configure(cursor="arrow")
-
-            elif self._state == tkinter.NORMAL:
-                if sys.platform == "darwin":
-                    self._canvas.configure(cursor="pointinghand")
-                    if self._text_label is not None:
-                        self._text_label.configure(cursor="pointinghand")
-                elif sys.platform.startswith("win"):
-                    self._canvas.configure(cursor="hand2")
-                    if self._text_label is not None:
-                        self._text_label.configure(cursor="hand2")
+        cursor = get_proper_cursor("normal" if self._state != tkinter.NORMAL else "clickable")
+        if cursor is not None:
+            self._canvas.configure(cursor=cursor)
+            self._text_label.configure(cursor=cursor)
 
     def _draw(self, force_colors_update: bool = False) -> None:
         super()._draw(force_colors_update)
 
-        common_args = (self._apply_widget_scaling(self._theme_info["switch_width"]),
-                       self._apply_widget_scaling(self._theme_info["switch_height"]),
-                       self._apply_widget_scaling(self._theme_info["corner_radius"]))
+        common_args = (self._apply_scaling(self._theme_info["switch_width"]),
+                       self._apply_scaling(self._theme_info["switch_height"]),
+                       self._apply_scaling(self._theme_info["corner_radius"]))
 
         requires_recoloring_1 = self._rounded_rect.update(*common_args,
-                                                          self._apply_widget_scaling(self._theme_info["border_width"]))
+                                                          self._apply_scaling(self._theme_info["border_width"]))
 
         requires_recoloring_2 = self._slider.update(*common_args,
                                                     0,
                                                     common_args[2],
                                                     "horizontal",
                                                     slider_value=1.0 if self._check_state else 0.0,
-                                                    button_length=self._apply_widget_scaling(self._theme_info["button_length"]))
+                                                    button_length=self._apply_scaling(self._theme_info["button_length"]))
 
         if force_colors_update or requires_recoloring_1 or requires_recoloring_2:
             self._rounded_rect.raise_()
@@ -211,11 +198,7 @@ class CTkSwitch(CTkWidget):
 
             self._bg_canvas.configure(bg=bg_color)
             self._canvas.configure(bg=bg_color)
-
-            if self._theme_info["border_color"] == "transparent":
-                self._rounded_rect.set_border_color(bg_color)
-            else:
-                self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
+            self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"], if_transparent=self._bg_color))
 
             if self._check_state:
                 self._rounded_rect.set_main_color(self._apply_appearance_mode(self._theme_info["fg_color_checked"]))
@@ -225,7 +208,7 @@ class CTkSwitch(CTkWidget):
             self._slider.set_color(self._apply_appearance_mode(self._theme_info["button_color"]))
 
             self._text_label.configure(bg=bg_color)
-            if self._state == tkinter.DISABLED:
+            if self._state != tkinter.NORMAL:
                 self._text_label.configure(fg=self._apply_appearance_mode(self._theme_info["text_color_disabled"]))
             else:
                 self._text_label.configure(fg=self._apply_appearance_mode(self._theme_info["text_color"]))
@@ -236,12 +219,12 @@ class CTkSwitch(CTkWidget):
 
         if "switch_width" in kwargs:
             self._theme_info["switch_width"] = kwargs.pop("switch_width")
-            self._canvas.configure(width=self._apply_widget_scaling(self._theme_info["switch_width"]))
+            self._canvas.configure(width=self._apply_scaling(self._theme_info["switch_width"]))
             require_redraw = True
 
         if "switch_height" in kwargs:
             self._theme_info["switch_height"] = kwargs.pop("switch_height")
-            self._canvas.configure(height=self._apply_widget_scaling(self._theme_info["switch_height"]))
+            self._canvas.configure(height=self._apply_scaling(self._theme_info["switch_height"]))
             require_redraw = True
 
         if "corner_radius" in kwargs:
@@ -307,10 +290,10 @@ class CTkSwitch(CTkWidget):
             require_new_state = True
 
         if "variable" in kwargs:
-            if self._variable is not None and self._variable != "":
+            if self._variable is not None:
                 self._variable.trace_remove("write", self._variable_callback_name)
             self._variable = kwargs.pop("variable")
-            if self._variable is not None and self._variable != "":
+            if self._variable is not None:
                 self._variable_callback_name = self._variable.trace_add("write", self._variable_callback)
                 require_new_state = True
 
@@ -325,8 +308,8 @@ class CTkSwitch(CTkWidget):
             self._set_cursor()
             require_redraw = True
 
-        if require_new_state and self._variable is not None and self._variable != "":
-            self._check_state = True if self._variable.get() == self._onvalue else False
+        if require_new_state and self._variable is not None:
+            self._check_state = self._variable.get() == self._onvalue
             require_redraw = True
         super().configure(require_redraw=require_redraw, **kwargs)
 
@@ -356,27 +339,29 @@ class CTkSwitch(CTkWidget):
 
         if self._variable is not None and not from_variable_callback:
             self._variable_callback_blocked = True
-            self._variable.set(self._onvalue if self._check_state is True else self._offvalue)
+            self._variable.set(self._onvalue if self._check_state else self._offvalue)
             self._variable_callback_blocked = False
 
-    def toggle(self, _: tkinter.Event | None = None) -> None:
+    def invoke(self, _: tkinter.Event | None = None) -> None:
+        """ Toggles the selection status if the widget is not disabled.\n
+        Can be called to simulate the user who clicks on the widget. """
         if self._state == tkinter.NORMAL:
             self.set(not self._check_state)
 
             if self._command is not None:
                 self._command()
 
-    def select(self, from_variable_callback: bool = False) -> None:
-        self.set(True, from_variable_callback)
+    def select(self) -> None:
+        self.set(True)
 
-    def deselect(self, from_variable_callback: bool = False) -> None:
-        self.set(False, from_variable_callback)
+    def deselect(self) -> None:
+        self.set(False)
 
     def get(self) -> int | float | str | bool:
         return self._onvalue if self._check_state else self._offvalue
 
     def _on_enter(self, _: tkinter.Event | None = None) -> None:
-        if self._theme_info["hover"] is True and self._state == "normal":
+        if self._theme_info["hover"] and self._state == tkinter.NORMAL:
             self._hover_state = True
             self._slider.set_color(self._apply_appearance_mode(self._theme_info["button_hover_color"]))
 
@@ -387,34 +372,6 @@ class CTkSwitch(CTkWidget):
     def _variable_callback(self, *_: str) -> None:
         if not self._variable_callback_blocked:
             if self._variable.get() == self._onvalue:
-                self.select(from_variable_callback=True)
+                self.set(True, from_variable_callback=True)
             elif self._variable.get() == self._offvalue:
-                self.deselect(from_variable_callback=True)
-
-    def bind(self,
-             sequence: str | None = None,
-             func: Callable[[tkinter.Event], None] | None = None,
-             add: str | bool = True) -> None:
-        """ called on the tkinter.Canvas and tkinter.Label """
-        if not (add == "+" or add is True):
-            raise ValueError("'add' argument can only be '+' or True to preserve internal callbacks")
-        self._canvas.bind(sequence, func, add=True)
-        self._text_label.bind(sequence, func, add=True)
-
-    def unbind(self, sequence: str, funcid: None = None) -> None:
-        """ called on the tkinter.Label and tkinter.Canvas """
-        if funcid is not None:
-            raise ValueError("'funcid' argument can only be None, because there is a bug in" +
-                             " tkinter and its not clear whether the internal callbacks will be unbinded or not")
-        self._canvas.unbind(sequence, None)
-        self._text_label.unbind(sequence, None)
-        self._create_bindings(sequence=sequence)  # restore internal callbacks for sequence
-
-    def focus(self) -> None:
-        return self._text_label.focus()
-
-    def focus_set(self) -> None:
-        return self._text_label.focus_set()
-
-    def focus_force(self) -> None:
-        return self._text_label.focus_force()
+                self.set(False, from_variable_callback=True)

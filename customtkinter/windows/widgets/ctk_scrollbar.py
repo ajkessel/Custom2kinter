@@ -68,11 +68,13 @@ class CTkScrollbar(CTkWidget):
 
         self._canvas = CTkCanvas(master=self,
                                  highlightthickness=0,
-                                 width=self._apply_widget_scaling(self._current_width),
-                                 height=self._apply_widget_scaling(self._current_height))
+                                 width=self._apply_scaling(self._desired_width),
+                                 height=self._apply_scaling(self._desired_height))
         self._canvas.place(x=0, y=0, relwidth=1, relheight=1)
         self._rounded_rect = RoundedRect(self._canvas)
         self._slider = Slider(self._canvas)
+        self._bind_targets.append(self._canvas)
+        self._focus_target = self._canvas
 
         self._create_bindings()
         self._draw(force_colors_update=True)
@@ -100,50 +102,47 @@ class CTkScrollbar(CTkWidget):
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
 
-        self._canvas.configure(width=self._apply_widget_scaling(self._desired_width),
-                               height=self._apply_widget_scaling(self._desired_height))
+        self._canvas.configure(width=self._apply_scaling(self._desired_width),
+                               height=self._apply_scaling(self._desired_height))
         self._draw()
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
         super()._set_dimensions(width, height)
 
-        self._canvas.configure(width=self._apply_widget_scaling(self._desired_width),
-                               height=self._apply_widget_scaling(self._desired_height))
+        self._canvas.configure(width=self._apply_scaling(self._desired_width),
+                               height=self._apply_scaling(self._desired_height))
         self._draw()
 
     def _get_scrollbar_values_for_minimum_pixel_size(self) -> tuple[float, float]:
         # correct scrollbar float values if scrollbar is too small
-        if self._theme_info["orientation"] == "vertical":
-            scrollbar_pixel_length = (self._end_value - self._start_value) * self._current_height
-            if scrollbar_pixel_length < self._theme_info["minimum_pixel_length"] and -scrollbar_pixel_length + self._current_height != 0:
-                # calculate how much to increase the float interval values so that the scrollbar width is self.minimum_pixel_length
-                interval_extend_factor = (-scrollbar_pixel_length + self._theme_info["minimum_pixel_length"]) / (-scrollbar_pixel_length + self._current_height)
-                corrected_end_value = self._end_value + (1 - self._end_value) * interval_extend_factor
-                corrected_start_value = self._start_value - self._start_value * interval_extend_factor
-                return corrected_start_value, corrected_end_value
-            else:
-                return self._start_value, self._end_value
-
+        current_length = self._current_height if self._theme_info["orientation"] == "vertical" else self._current_width
+        if current_length != 0:
+            minimal_length = min(0.9, self._apply_scaling(float(self._theme_info["minimum_pixel_length"])) / current_length)
         else:
-            scrollbar_pixel_length = (self._end_value - self._start_value) * self._current_width
-            if scrollbar_pixel_length < self._theme_info["minimum_pixel_length"] and -scrollbar_pixel_length + self._current_width != 0:
-                # calculate how much to increase the float interval values so that the scrollbar width is self.minimum_pixel_length
-                interval_extend_factor = (-scrollbar_pixel_length + self._theme_info["minimum_pixel_length"]) / (-scrollbar_pixel_length + self._current_width)
-                corrected_end_value = self._end_value + (1 - self._end_value) * interval_extend_factor
-                corrected_start_value = self._start_value - self._start_value * interval_extend_factor
-                return corrected_start_value, corrected_end_value
-            else:
-                return self._start_value, self._end_value
+            minimal_length = 0
+        actual_length = self._end_value - self._start_value
+
+        #if actual length is less than the minimum one and there is space available
+        if actual_length < minimal_length and actual_length < 1.0:
+            #we change the values so that the new length  is exactly equal to the requested one.
+            # the formula has been derived considering that the scrollbar gets bigger evenly
+            # when in the middle, it extends only towards max when already at the min,
+            # and it extends only towards min when already at the max
+            corrected_start_value = self._start_value * (1.0 - minimal_length) / (1.0 - actual_length)
+            corrected_end_value = corrected_start_value + minimal_length
+            return corrected_start_value, corrected_end_value
+        else:
+            return self._start_value, self._end_value
 
     def _draw(self, force_colors_update: bool = False) -> None:
         super()._draw(force_colors_update)
 
         corrected_start_value, corrected_end_value = self._get_scrollbar_values_for_minimum_pixel_size()
 
-        common_args = (self._apply_widget_scaling(self._current_width),
-                       self._apply_widget_scaling(self._current_height),
-                       self._apply_widget_scaling(self._theme_info["corner_radius"]),
-                       self._apply_widget_scaling(self._theme_info["border_width"]))
+        common_args = (self._current_width,
+                       self._current_height,
+                       self._apply_scaling(self._theme_info["corner_radius"]),
+                       self._apply_scaling(self._theme_info["border_width"]))
 
         requires_recoloring_1 = self._rounded_rect.update(*common_args)
 
@@ -157,20 +156,11 @@ class CTkScrollbar(CTkWidget):
             self._rounded_rect.raise_()
             self._slider.raise_()
 
-            bg_color = self._apply_appearance_mode(self._bg_color)
-            fg_color = self._apply_appearance_mode(self._theme_info["fg_color"])
-            if fg_color == "transparent":
-                fg_color = bg_color
+            self._canvas.configure(bg=self._apply_appearance_mode(self._bg_color))
+            self._rounded_rect.set_main_color(self._apply_appearance_mode(self._theme_info["fg_color"], if_transparent=self._bg_color))
+            self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"], if_transparent=self._bg_color))
 
-            self._canvas.configure(bg=bg_color)
-            self._rounded_rect.set_main_color(fg_color)
-
-            if self._theme_info["border_color"] == "transparent":
-                self._rounded_rect.set_border_color(bg_color)
-            else:
-                self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
-
-            if self._hover_state is True:
+            if self._hover_state:
                 self._slider.set_color(self._apply_appearance_mode(self._theme_info["button_hover_color"]))
             else:
                 self._slider.set_color(self._apply_appearance_mode(self._theme_info["button_color"]))
@@ -219,7 +209,7 @@ class CTkScrollbar(CTkWidget):
             return super().cget(attribute_name)
 
     def _on_enter(self, _: tkinter.Event | None = None) -> None:
-        if self._theme_info["hover"] is True:
+        if self._theme_info["hover"]:
             self._hover_state = True
             self._slider.set_color(self._apply_appearance_mode(self._theme_info["button_hover_color"]))
 
@@ -231,24 +221,25 @@ class CTkScrollbar(CTkWidget):
         self._motion_center_offset = 0.0
         self._on_motion(event)
 
-    def _clicked_scrollbar(self, event: tkinter.Event) -> None:
+    def _get_value_from_event(self, event: tkinter.Event) -> float:
+        border_width = self._apply_scaling(float(self._theme_info["border_width"]))
         if self._theme_info["orientation"] == "vertical":
-            value = self._reverse_widget_scaling(((event.y - self._theme_info["border_width"]) / (self._current_height - 2 * self._theme_info["border_width"])))
+            value = (event.y - border_width) / (self._current_height - 2 * border_width)
         else:
-            value = self._reverse_widget_scaling(((event.x - self._theme_info["border_width"]) / (self._current_width - 2 * self._theme_info["border_width"])))
-        center = self._start_value + ((self._end_value - self._start_value) * 0.5)
-        self._motion_center_offset = center - value
+            value = (event.x - border_width) / (self._current_width - 2 * border_width)
+        return value
+
+    def _clicked_scrollbar(self, event: tkinter.Event) -> None:
+        clicked_value = self._get_value_from_event(event)
+        current_center = (self._start_value + self._end_value) / 2
+        self._motion_center_offset = current_center - clicked_value
 
     def _on_motion(self, event: tkinter.Event) -> None:
-        if self._theme_info["orientation"] == "vertical":
-            value = self._reverse_widget_scaling(((event.y - self._theme_info["border_width"]) / (self._current_height - 2 * self._theme_info["border_width"])))+self._motion_center_offset
-        else:
-            value = self._reverse_widget_scaling(((event.x - self._theme_info["border_width"]) / (self._current_width - 2 * self._theme_info["border_width"])))+self._motion_center_offset
-
-        current_scrollbar_length = self._end_value - self._start_value
-        value = max(current_scrollbar_length / 2, min(value, 1 - (current_scrollbar_length / 2)))
-        self._start_value = value - (current_scrollbar_length / 2)
-        self._end_value = value + (current_scrollbar_length / 2)
+        half_length = (self._end_value - self._start_value) / 2
+        new_center = self._get_value_from_event(event) + self._motion_center_offset
+        new_center = max(half_length, min(1 - half_length, new_center))
+        self._start_value = new_center - half_length
+        self._end_value = new_center + half_length
         self._draw()
 
         if self._command is not None:
@@ -281,7 +272,6 @@ class CTkScrollbar(CTkWidget):
                 self._end_value += delta
             self._draw()
 
-
     def set(self, start_value: float, end_value: float) -> None:
         self._start_value = float(start_value)
         self._end_value = float(end_value)
@@ -289,29 +279,3 @@ class CTkScrollbar(CTkWidget):
 
     def get(self) -> tuple[float, float]:
         return self._start_value, self._end_value
-
-    def bind(self,
-             sequence: str | None = None,
-             func: Callable[[tkinter.Event], None] | None = None,
-             add: str | bool = True) -> None:
-        """ called on the tkinter.Canvas """
-        if not (add == "+" or add is True):
-            raise ValueError("'add' argument can only be '+' or True to preserve internal callbacks")
-        self._canvas.bind(sequence, func, add=True)
-
-    def unbind(self, sequence: str, funcid: None = None) -> None:
-        """ called on the tkinter.Canvas, restores internal callbacks """
-        if funcid is not None:
-            raise ValueError("'funcid' argument can only be None, because there is a bug in" +
-                             " tkinter and its not clear whether the internal callbacks will be unbinded or not")
-        self._canvas.unbind(sequence, None)  # unbind all callbacks for sequence
-        self._create_bindings(sequence=sequence)  # restore internal callbacks for sequence
-
-    def focus(self) -> None:
-        return self._canvas.focus()
-
-    def focus_set(self) -> None:
-        return self._canvas.focus_set()
-
-    def focus_force(self) -> None:
-        return self._canvas.focus_force()

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import tkinter
-from typing import Any, Callable
+from typing import Any
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkContainer, CTkWidget
@@ -67,8 +67,7 @@ class CTkEntry(CTkWidget):
         # functionality
         self._state: Literal["normal", "disabled", "readonly"] = state
         self._textvariable: tkinter.StringVar | None = textvariable
-        self._textvariable_callback_name: str = ""
-        self._is_focused: bool = True
+        self._is_focused: bool = False
         self._placeholder_text_active: bool = False
         self._pre_placeholder_arguments: dict[str, Any] = {}  # some set arguments of the entry will be changed for placeholder and then set back
 
@@ -76,13 +75,10 @@ class CTkEntry(CTkWidget):
         self._font: CTkFont = CTkFont.from_parameter(self._theme_info["font"])
         self._font.add_size_configure_callback(self._update_font)
 
-        if self._textvariable is not None and self._textvariable != "":
-            self._textvariable_callback_name = self._textvariable.trace_add("write", self._textvariable_callback)
-
         self._canvas = CTkCanvas(master=self,
                                  highlightthickness=0,
-                                 width=self._apply_widget_scaling(self._current_width),
-                                 height=self._apply_widget_scaling(self._current_height))
+                                 width=self._apply_scaling(self._desired_width),
+                                 height=self._apply_scaling(self._desired_height))
         self._rounded_rect = RoundedRect(self._canvas)
 
         self._entry = tkinter.Entry(master=self,
@@ -93,6 +89,8 @@ class CTkEntry(CTkWidget):
                                     state=self._state,
                                     textvariable=self._textvariable,
                                     **entry_kwargs)
+        self._bind_targets.append(self._entry)
+        self._focus_target = self._entry
 
         self._create_grid()
         self._activate_placeholder()
@@ -111,30 +109,27 @@ class CTkEntry(CTkWidget):
 
         if self._theme_info["corner_radius"] >= self._minimum_x_padding:
             self._entry.grid(column=0, row=0, sticky="nswe",
-                             padx=min(self._apply_widget_scaling(self._theme_info["corner_radius"]), round(self._apply_widget_scaling(self._current_height/2))),
-                             pady=(self._apply_widget_scaling(self._theme_info["border_width"]), self._apply_widget_scaling(self._theme_info["border_width"] + 1)))
+                             padx=min(self._apply_scaling(self._theme_info["corner_radius"]), round(self._current_height / 2)),
+                             pady=(self._apply_scaling(self._theme_info["border_width"]), self._apply_scaling(self._theme_info["border_width"] + 1)))
         else:
             self._entry.grid(column=0, row=0, sticky="nswe",
-                             padx=self._apply_widget_scaling(self._minimum_x_padding),
-                             pady=(self._apply_widget_scaling(self._theme_info["border_width"]), self._apply_widget_scaling(self._theme_info["border_width"] + 1)))
-
-    def _textvariable_callback(self, *_: str) -> None:
-        if self._textvariable.get() == "":
-            self._activate_placeholder()
+                             padx=self._apply_scaling(self._minimum_x_padding),
+                             pady=(self._apply_scaling(self._theme_info["border_width"]), self._apply_scaling(self._theme_info["border_width"] + 1)))
 
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
 
         self._entry.configure(font=self._apply_font_scaling(self._font))
-        self._canvas.configure(width=self._apply_widget_scaling(self._desired_width), height=self._apply_widget_scaling(self._desired_height))
+        self._canvas.configure(width=self._apply_scaling(self._desired_width),
+                               height=self._apply_scaling(self._desired_height))
         self._create_grid()
         self._draw()
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
         super()._set_dimensions(width, height)
 
-        self._canvas.configure(width=self._apply_widget_scaling(self._desired_width),
-                               height=self._apply_widget_scaling(self._desired_height))
+        self._canvas.configure(width=self._apply_scaling(self._desired_width),
+                               height=self._apply_scaling(self._desired_height))
         self._draw()
 
     def _update_font(self) -> None:
@@ -147,34 +142,27 @@ class CTkEntry(CTkWidget):
         self._canvas.grid(column=0, row=0, sticky="nswe")
 
     def destroy(self) -> None:
-        if self._textvariable is not None:
-            self._textvariable.trace_remove("write", self._textvariable_callback_name)
-
         self._font.remove_size_configure_callback(self._update_font)
         super().destroy()
 
     def _draw(self, force_colors_update: bool = False) -> None:
         super()._draw(force_colors_update)
 
-        requires_recoloring = self._rounded_rect.update(self._apply_widget_scaling(self._current_width),
-                                                        self._apply_widget_scaling(self._current_height),
-                                                        self._apply_widget_scaling(self._theme_info["corner_radius"]),
-                                                        self._apply_widget_scaling(self._theme_info["border_width"]))
+        requires_recoloring = self._rounded_rect.update(self._current_width,
+                                                        self._current_height,
+                                                        self._apply_scaling(self._theme_info["corner_radius"]),
+                                                        self._apply_scaling(self._theme_info["border_width"]))
 
         if force_colors_update or requires_recoloring:
-            bg_color = self._apply_appearance_mode(self._bg_color)
-            fg_color = self._apply_appearance_mode(self._theme_info["fg_color"])
-            if fg_color == "transparent":
-                fg_color = bg_color
-            border_color = self._apply_appearance_mode(self._theme_info["border_color"])
+            fg_color = self._apply_appearance_mode(self._theme_info["fg_color"], if_transparent=self._bg_color)
             if self._placeholder_text_active:
                 text_color = self._apply_appearance_mode(self._theme_info["placeholder_text_color"])
             else:
                 text_color = self._apply_appearance_mode(self._theme_info["text_color"])
 
-            self._canvas.configure(bg=bg_color)
+            self._canvas.configure(bg=self._apply_appearance_mode(self._bg_color))
             self._rounded_rect.set_main_color(fg_color)
-            self._rounded_rect.set_border_color(border_color)
+            self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
             self._entry.configure(bg=fg_color, disabledbackground=fg_color, readonlybackground=fg_color, highlightcolor=fg_color)
             self._entry.configure(fg=text_color, disabledforeground=text_color, insertbackground=text_color)
 
@@ -206,12 +194,10 @@ class CTkEntry(CTkWidget):
             require_redraw = True
 
         if "textvariable" in kwargs:
-            if self._textvariable is not None and self._textvariable != "":
-                self._textvariable.trace_remove("write", self._textvariable_callback_name)  # remove old variable callback
             self._textvariable = kwargs.pop("textvariable")
             self._entry.configure(textvariable=self._textvariable)
-            if self._textvariable is not None and self._textvariable != "":
-                self._textvariable_callback_name = self._textvariable.trace_add("write", self._textvariable_callback)
+            self._deactivate_placeholder()
+            self._activate_placeholder()
 
         if "placeholder_text" in kwargs:
             self._theme_info["placeholder_text"] = kwargs.pop("placeholder_text")
@@ -254,25 +240,8 @@ class CTkEntry(CTkWidget):
         else:
             return super().cget(attribute_name)
 
-    def bind(self,
-             sequence: str | None = None,
-             func: Callable[[tkinter.Event], None] | None = None,
-             add: str | bool = True) -> None:
-        """ called on the tkinter.Entry """
-        if not (add == "+" or add is True):
-            raise ValueError("'add' argument can only be '+' or True to preserve internal callbacks")
-        self._entry.bind(sequence, func, add=True)
-
-    def unbind(self, sequence: str, funcid: None = None) -> None:
-        """ called on the tkinter.Entry """
-        if funcid is not None:
-            raise ValueError("'funcid' argument can only be None, because there is a bug in" +
-                             " tkinter and its not clear whether the internal callbacks will be unbinded or not")
-        self._entry.unbind(sequence, None)  # unbind all callbacks for sequence
-        self._create_bindings(sequence=sequence)  # restore internal callbacks for sequence
-
     def _activate_placeholder(self) -> None:
-        if self._entry.get() == "" and self._theme_info["placeholder_text"] is not None and (self._textvariable is None or self._textvariable == ""):
+        if self._entry.get() == "" and self._textvariable is None and not self._is_focused:
             self._placeholder_text_active = True
 
             self._pre_placeholder_arguments = {"show": self._entry.cget("show")}
@@ -283,52 +252,47 @@ class CTkEntry(CTkWidget):
             self._entry.insert(0, self._theme_info["placeholder_text"])
 
     def _deactivate_placeholder(self) -> None:
-        if self._placeholder_text_active and self._entry.cget("state") != "readonly":
+        if self._placeholder_text_active:
             self._placeholder_text_active = False
 
             self._entry.config(fg=self._apply_appearance_mode(self._theme_info["text_color"]),
-                               disabledforeground=self._apply_appearance_mode(self._theme_info["text_color"]),)
+                               disabledforeground=self._apply_appearance_mode(self._theme_info["text_color"]))
             self._entry.delete(0, tkinter.END)
-            for argument, value in self._pre_placeholder_arguments.items():
-                self._entry[argument] = value
+            self._entry.configure(**self._pre_placeholder_arguments)
 
     def _entry_focus_out(self, _: tkinter.Event | None = None) -> None:
-        self._activate_placeholder()
         self._is_focused = False
+        self._activate_placeholder()
 
     def _entry_focus_in(self, _: tkinter.Event | None = None) -> None:
-        self._deactivate_placeholder()
-        self._is_focused = True
+        if self._state == tkinter.NORMAL:
+            self._is_focused = True
+            self._deactivate_placeholder()
 
     def delete(self, first_index: str | int, last_index: str | int | None = None) -> None:
         self._entry.delete(first_index, last_index)
-
-        if not self._is_focused and self._entry.get() == "":
-            self._activate_placeholder()
+        self._activate_placeholder()
 
     def insert(self, index: str | int, string: str) -> None:
         self._deactivate_placeholder()
-
         return self._entry.insert(index, string)
 
     def set(self, string: str) -> None:
-        self._entry.delete(0, tkinter.END)
-        self.insert(0, string)
+        """ Changes the content to the desired value, regardless of the widget's state. """
+        if self._state == tkinter.NORMAL:
+            self._entry.delete(0, tkinter.END)
+            self.insert(0, string)
+        else:
+            self._entry.configure(state=tkinter.NORMAL)
+            self._entry.delete(0, tkinter.END)
+            self.insert(0, string)
+            self._entry.configure(state=self._state)
 
     def get(self) -> str:
         if self._placeholder_text_active:
             return ""
         else:
             return self._entry.get()
-
-    def focus(self) -> None:
-        return self._entry.focus()
-
-    def focus_set(self) -> None:
-        return self._entry.focus_set()
-
-    def focus_force(self) -> None:
-        return self._entry.focus_force()
 
     def index(self, index: str | int) -> int:
         return self._entry.index(index)

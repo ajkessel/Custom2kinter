@@ -1,4 +1,5 @@
 from .theme_manager import ThemeManager
+from .theme_manager import AnchorType
 from .theme_manager import ColorType
 from .theme_manager import TransparentColorType
 

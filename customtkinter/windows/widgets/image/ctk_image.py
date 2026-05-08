@@ -46,11 +46,11 @@ class CTkImage:
             raise ImportError("PIL.Image and PIL.ImageTk couldn't be imported") from exc
 
     def add_configure_callback(self, callback: Callable[[], None]) -> None:
-        """ add function, that gets called when image got configured """
+        """ Adds function that gets called when image gets configured """
         self._configure_callback_list.append(callback)
 
     def remove_configure_callback(self, callback: Callable[[], None]) -> None:
-        """ remove function, that gets called when image got configured """
+        """ Removes function that gets called when image gets configured """
         self._configure_callback_list.remove(callback)
 
     def configure(self, **kwargs: Any) -> None:
