@@ -19,22 +19,20 @@ AnchorType : TypeAlias = Literal["center", "n", "ne", "e", "se", "s", "sw", "w",
 class ThemeInfo(TypedDict, total=False):
     orientation: Literal["horizontal", "vertical"]
     thickness: int
-    lenght: int
+    length: int
     width: int
     height: int
     checkbox_width: int
     checkbox_height: int
-    switch_width: int
-    switch_height: int
     radiobutton_width: int
     radiobutton_height: int
     corner_radius: int
-    button_corner_radius: int
     button_length: int
     border_width: int
     border_width_checked: int
     border_width_unchecked: int
     border_spacing: int
+    internal_spacing: int
     bg_color: TransparentColorType
     fg_color: TransparentColorType
     fg_color_checked: ColorType
@@ -55,8 +53,6 @@ class ThemeInfo(TypedDict, total=False):
     placeholder_text_color: ColorType
     hover: bool
     activate_scrollbars: bool
-    round_width_to_even_numbers: bool
-    round_height_to_even_numbers: bool
     placeholder_text: str
     title: str
     text: str

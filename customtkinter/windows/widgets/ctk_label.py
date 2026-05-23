@@ -5,7 +5,7 @@ from typing import Any, TYPE_CHECKING
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkContainer, CTkWidget
-from .core_rendering import CTkCanvas, RoundedRect
+from .core_rendering import CTkCanvas, BorderedRoundedRect
 from .font.ctk_font import CTkFont, FontType
 from .theme import AnchorType, ColorType, TransparentColorType, ThemeManager
 from .image import CTkImage
@@ -20,6 +20,7 @@ class CTkLabelArgs(TypedDict, total=False):
     height: int
     corner_radius: int
     border_width: int
+    border_spacing: int
     bg_color: TransparentColorType
     fg_color: TransparentColorType
     border_color: ColorType
@@ -63,8 +64,6 @@ class CTkLabel(CTkWidget):
                          width=self._theme_info["width"],
                          height=self._theme_info["height"])
 
-        self._theme_info["corner_radius"] = min(self._theme_info["corner_radius"], round(self._desired_height / 2))
-
         # image
         self._image: CTkImage | ImageTk.PhotoImage | tkinter.PhotoImage | str | None = self._check_image_type(image)
         if isinstance(self._image, CTkImage):
@@ -83,7 +82,7 @@ class CTkLabel(CTkWidget):
                                  width=self._apply_scaling(self._desired_width),
                                  height=self._apply_scaling(self._desired_height))
         self._canvas.grid(row=0, column=0, sticky="nswe")
-        self._rounded_rect = RoundedRect(self._canvas)
+        self._rounded_rect = BorderedRoundedRect(self._canvas)
         self._bind_targets.append(self._canvas)
 
         self._label = tkinter.Label(master=self,
@@ -100,7 +99,6 @@ class CTkLabel(CTkWidget):
         self._bind_targets.append(self._label)
         self._focus_target = self._label
 
-        self._create_grid()
         self._update_image()
         self._draw(force_colors_update=True)
 
@@ -112,7 +110,6 @@ class CTkLabel(CTkWidget):
         self._label.configure(font=self._apply_font_scaling(self._font))
         self._label.configure(wraplength=self._apply_scaling(self._theme_info["wraplength"]))
 
-        self._create_grid()
         self._update_image()
         self._draw()
 
@@ -125,7 +122,6 @@ class CTkLabel(CTkWidget):
 
         self._canvas.configure(width=self._apply_scaling(self._desired_width),
                                height=self._apply_scaling(self._desired_height))
-        self._create_grid()
         self._draw()
 
     def _update_font(self) -> None:
@@ -150,13 +146,6 @@ class CTkLabel(CTkWidget):
             self._image.remove_configure_callback(self._update_image)
         super().destroy()
 
-    def _create_grid(self) -> None:
-        """ configure grid system (1x1) """
-
-        text_label_grid_sticky = self._theme_info["anchor"] if self._theme_info["anchor"] != "center" else ""
-        self._label.grid(row=0, column=0, sticky=text_label_grid_sticky,
-                         padx=self._apply_scaling(self._theme_info["corner_radius"]))
-
     def _draw(self, force_colors_update: bool = False) -> None:
         super()._draw(force_colors_update)
 
@@ -164,6 +153,9 @@ class CTkLabel(CTkWidget):
                                                         self._current_height,
                                                         self._apply_scaling(self._theme_info["corner_radius"]),
                                                         self._apply_scaling(self._theme_info["border_width"]))
+
+        if self._rounded_rect.info["spacings_changed"]:
+            self._update_geometry()
 
         if force_colors_update or requires_recoloring:
             fg_color = self._apply_appearance_mode(self._theme_info["fg_color"], if_transparent=self._bg_color)
@@ -175,16 +167,23 @@ class CTkLabel(CTkWidget):
                                   disabledforeground=self._apply_appearance_mode(self._theme_info["text_color_disabled"]),
                                   bg=fg_color)
 
+    def _update_geometry(self) -> None:
+        sticky = self._theme_info["anchor"] if self._theme_info["anchor"] != "center" else ""
+        spacing = self._rounded_rect.info.get("inscribed_spacing", 0) + self._apply_scaling(self._theme_info["border_spacing"])
+        self._label.grid(row=0, column=0, sticky=sticky, padx=spacing, pady=spacing)
+
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkLabelArgs]) -> None:
         if "corner_radius" in kwargs:
             self._theme_info["corner_radius"] = kwargs.pop("corner_radius")
-            self._create_grid()
             require_redraw = True
 
         if "border_width" in kwargs:
             self._theme_info["border_width"] = kwargs.pop("border_width")
-            self._create_grid()
             require_redraw = True
+
+        if "border_spacing" in kwargs:
+            self._theme_info["border_spacing"] = kwargs.pop("border_spacing")
+            self._update_geometry()
 
         if "fg_color" in kwargs:
             self._theme_info["fg_color"] = self._check_color_type(kwargs.pop("fg_color"), transparency=True)
@@ -227,7 +226,7 @@ class CTkLabel(CTkWidget):
         if "anchor" in kwargs:
             self._theme_info["anchor"] = kwargs.pop("anchor")
             self._label.configure(anchor=self._theme_info["anchor"])
-            self._create_grid()
+            self._update_geometry()
 
         if "wraplength" in kwargs:
             self._theme_info["wraplength"] = kwargs.pop("wraplength")

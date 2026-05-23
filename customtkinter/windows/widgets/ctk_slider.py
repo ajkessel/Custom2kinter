@@ -6,17 +6,16 @@ from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkContainer, CTkWidget
-from .core_rendering import CTkCanvas, RoundedRect, ProgressBar, Slider
+from .core_rendering import CTkCanvas, BorderedRoundedRect, RoundedRect
 from .theme import ColorType, TransparentColorType, ThemeManager
-from .utility import get_proper_cursor
+from .utility import get_proper_cursor, get_width_height_from_orientation
 
 
 class CTkSliderArgs(TypedDict, total=False):
     orientation: Literal["horizontal", "vertical"]
     thickness: int
-    lenght: int
+    length: int
     button_length: int
-    button_corner_radius: int
     corner_radius: int
     border_width: int
     bg_color: TransparentColorType
@@ -54,16 +53,10 @@ class CTkSlider(CTkWidget):
                 self._theme_info[key] = self._check_color_type(self._theme_info[key],
                                                                transparency=key in ("border_color", "progress_color", "bg_color"))
 
-        if self._theme_info["corner_radius"] < self._theme_info["button_corner_radius"]:
-            self._theme_info["corner_radius"] = self._theme_info["button_corner_radius"]
-
         # set default dimensions according to orientation
-        if self._theme_info["orientation"] == "vertical":
-            width = self._theme_info["thickness"]
-            height = self._theme_info["lenght"]
-        else:
-            width = self._theme_info["lenght"]
-            height = self._theme_info["thickness"]
+        width, height = get_width_height_from_orientation(self._theme_info["orientation"],
+                                                          self._theme_info["thickness"],
+                                                          self._theme_info["length"])
 
         super().__init__(master=master,
                          bg_color=self._theme_info["bg_color"],
@@ -83,15 +76,16 @@ class CTkSlider(CTkWidget):
         self._scroll_step: float = (1 / (20 if number_of_steps is None else number_of_steps)) if scroll_step is None else scroll_step
         self._output_value: float = self._from + (self._value * (self._to - self._from))
         self._hover_state: bool = False
+        self._motion_center_offset: float = 0.0
 
         self._canvas = CTkCanvas(master=self,
                                  highlightthickness=0,
                                  width=self._apply_scaling(self._desired_width),
                                  height=self._apply_scaling(self._desired_height))
         self._canvas.place(x=0, y=0, relwidth=1, relheight=1)
-        self._rounded_rect = RoundedRect(self._canvas)
-        self._progress_bar = ProgressBar(self._canvas)
-        self._slider = Slider(self._canvas)
+        self._rounded_rect = BorderedRoundedRect(self._canvas)
+        self._progress_bar = RoundedRect(self._canvas)
+        self._slider = RoundedRect(self._canvas)
         self._bind_targets.append(self._canvas)
         self._focus_target = self._canvas
 
@@ -112,9 +106,11 @@ class CTkSlider(CTkWidget):
         if sequence is None or sequence == "<Leave>":
             self._canvas.bind("<Leave>", self._on_leave)
         if sequence is None or sequence == "<Button-1>":
-            self._canvas.bind("<Button-1>", self._clicked)
+            self._rounded_rect.bind("<Button-1>", self._clicked)
+            self._progress_bar.bind("<Button-1>", self._clicked)
+            self._slider.bind("<Button-1>", self._clicked_slider)
         if sequence is None or sequence == "<B1-Motion>":
-            self._canvas.bind("<B1-Motion>", self._clicked)
+            self._canvas.bind("<B1-Motion>", self._on_motion)
         if "linux" in sys.platform:
             if sequence is None or sequence == "<Button-4>":
                 self._canvas.bind("<Button-4>", self._mouse_scroll_event)
@@ -153,24 +149,45 @@ class CTkSlider(CTkWidget):
     def _draw(self, force_colors_update: bool = False) -> None:
         super()._draw(force_colors_update)
 
-        common_args = (self._current_width,
-                       self._current_height,
-                       self._apply_scaling(self._theme_info["corner_radius"]),
-                       self._apply_scaling(self._theme_info["border_width"]))
+        requires_recoloring_1 = self._rounded_rect.update(self._current_width,
+                                                          self._current_height,
+                                                          self._apply_scaling(self._theme_info["corner_radius"]),
+                                                          self._apply_scaling(self._theme_info["border_width"]))
 
-        requires_recoloring_1 = self._rounded_rect.update(*common_args)
+        info = self._rounded_rect.info.get
+        corner_radius = info("corner_radius", 0)
+        border_width = info("border_width", 0)
+        button_length = self._apply_scaling(self._theme_info["button_length"]) + 2 * corner_radius
+        spacing = max(0, info("flat_spacing", 0) - corner_radius)
 
-        requires_recoloring_2 = self._progress_bar.update(*common_args,
-                                                          self._theme_info["orientation"],
-                                                          0.0,
-                                                          self._value)
+        if self._theme_info["orientation"] == "horizontal":
+            button_x_start = spacing + (self._current_width - button_length - 2 * spacing) * self._value
+            button_y_start = 0
+            button_width = button_length
+            button_height = self._current_height
 
-        requires_recoloring_3 = self._slider.update(*common_args[0:3],
-                                                    0,
-                                                    self._apply_scaling(self._theme_info["button_corner_radius"]),
-                                                    self._theme_info["orientation"],
-                                                    slider_value=self._value,
-                                                    button_length=self._apply_scaling(self._theme_info["button_length"]))
+            progress_x_start = border_width
+            progress_y_start = border_width
+            progress_width = button_x_start + button_width - progress_x_start - 1
+            progress_height = info("inner_height", 0)
+        else:
+            button_x_start = 0
+            button_y_start = spacing + (self._current_height - button_length- 2 * spacing) * (1 - self._value)
+            button_width = self._current_width
+            button_height = button_length
+
+            progress_x_start = border_width
+            progress_y_start = button_y_start + 1
+            progress_width = info("inner_width", 0)
+            progress_height = border_width + info("inner_height", 0) - progress_y_start
+
+        requires_recoloring_2 = self._progress_bar.update(progress_x_start, progress_y_start,
+                                                          progress_width, progress_height,
+                                                          info("inner_corner_radius", 0))
+
+        requires_recoloring_3 = self._slider.update(button_x_start, button_y_start,
+                                                    button_width, button_height,
+                                                    corner_radius)
 
         if force_colors_update or requires_recoloring_1 or requires_recoloring_2 or requires_recoloring_3:
             self._rounded_rect.raise_()
@@ -188,12 +205,16 @@ class CTkSlider(CTkWidget):
                 self._slider.set_color(self._apply_appearance_mode(self._theme_info["button_color"]))
 
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkSliderArgs]) -> None:
+        if "thickness" in kwargs:
+            self._theme_info["thickness"] = kwargs.pop("thickness")
+            kwargs["width" if self._theme_info["orientation"] == "vertical" else "height"] = self._theme_info["thickness"]
+
+        if "length" in kwargs:
+            self._theme_info["length"] = kwargs.pop("length")
+            kwargs["height" if self._theme_info["orientation"] == "vertical" else "width"] = self._theme_info["length"]
+
         if "corner_radius" in kwargs:
             self._theme_info["corner_radius"] = kwargs.pop("corner_radius")
-            require_redraw = True
-
-        if "button_corner_radius" in kwargs:
-            self._theme_info["button_corner_radius"] = kwargs.pop("button_corner_radius")
             require_redraw = True
 
         if "border_width" in kwargs:
@@ -289,13 +310,36 @@ class CTkSlider(CTkWidget):
             self._command(self._output_value)
 
     def _clicked(self, event: tkinter.Event) -> None:
+        if self._theme_info["orientation"] == "horizontal":
+            button_length = self._slider.info["width"]
+            length = self._current_width
+            sign = -1.0
+        else:
+            button_length = self._slider.info["height"]
+            length = self._current_height
+            sign = +1.0
+        info = self._rounded_rect.info.get
+        spacing = max(0, info("flat_spacing", 0) - info("corner_radius", 0))
+        self._motion_center_offset = sign * (button_length / 2) / (length - 2 * spacing - button_length)
+        self._on_motion(event)
+
+    def _get_value_from_event(self, event: tkinter.Event) -> float:
+        info = self._rounded_rect.info.get
+        spacing = max(0, info("flat_spacing", 0) - info("corner_radius", 0))
+        if self._theme_info["orientation"] == "horizontal":
+            value = (event.x - spacing) / (self._current_width - 2 * spacing - self._slider.info["width"])
+        else:
+            value = 1.0 - ((event.y - spacing) / (self._current_height - 2 * spacing - self._slider.info["height"]))
+        return value
+
+    def _clicked_slider(self, event: tkinter.Event) -> None:
+        clicked_value = self._get_value_from_event(event)
+        self._motion_center_offset = self._value - clicked_value
+
+    def _on_motion(self, event: tkinter.Event) -> None:
         if self._state == tkinter.NORMAL:
-            border_width = self._apply_scaling(self._theme_info["border_width"])
-            if self._theme_info["orientation"] == "horizontal":
-                value = (event.x - border_width) / (self._current_width - 2 * border_width)
-            else:
-                value = 1.0 - ((event.y - border_width) / (self._current_height - 2 * border_width))
-            self._update_value(value)
+            new_center = self._get_value_from_event(event) + self._motion_center_offset
+            self._update_value(new_center)
 
     def _mouse_scroll_event(self, event: tkinter.Event) -> None:
         delta = self._scroll_step

@@ -77,7 +77,7 @@ class CTkSegmentedButton(CTkFrame):
         self._current_value: str = ""
         if len(self._values) > 0:
             self._create_buttons_from_values()
-            self._create_button_grid()
+            self._update_geometry()
 
         if self._variable is not None:
             self._variable_callback_name = self._variable.trace_add("write", self._variable_callback)
@@ -173,9 +173,7 @@ class CTkSegmentedButton(CTkFrame):
                                text=value,
                                font=self._theme_sb_info["font"],
                                state=self._state,
-                               command=lambda v=value: self.set(v, from_button_callback=True),
-                               round_width_to_even_numbers=False,
-                               round_height_to_even_numbers=False)  # rendering option (so that theres no gap between buttons)
+                               command=lambda v=value: self.set(v, from_button_callback=True))
         return new_button
 
     def _create_buttons_from_values(self) -> None:
@@ -184,7 +182,7 @@ class CTkSegmentedButton(CTkFrame):
             self._buttons_dict[value] = self._create_button(value)
             self._configure_button_corners_for_index(index)
 
-    def _create_button_grid(self) -> None:
+    def _update_geometry(self) -> None:
         number_of_columns, number_of_rows = self.grid_size()
         if self._theme_sb_info["orientation"] == "vertical":
             # remove minsize from every grid cell in the first column
@@ -290,7 +288,7 @@ class CTkSegmentedButton(CTkFrame):
 
             if len(self._values) > 0:
                 self._create_buttons_from_values()
-                self._create_button_grid()
+                self._update_geometry()
 
             if self._current_value in self._values:
                 self._select_button_by_value(self._current_value)
@@ -374,7 +372,7 @@ class CTkSegmentedButton(CTkFrame):
         if index < len(self._buttons_dict) - 1:
             self._configure_button_corners_for_index(index + 1)
 
-        self._create_button_grid()
+        self._update_geometry()
 
         if value == self._current_value:
             self._select_button_by_value(self._current_value)
@@ -401,7 +399,7 @@ class CTkSegmentedButton(CTkFrame):
             elif index_to_remove == len(self._buttons_dict):
                 self._configure_button_corners_for_index(index_to_remove - 1)
 
-        self._create_button_grid()
+        self._update_geometry()
 
     def len(self) -> int:
         """ Returns the number of defined buttons. """

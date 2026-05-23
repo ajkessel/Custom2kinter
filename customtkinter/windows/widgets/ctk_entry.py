@@ -5,7 +5,7 @@ from typing import Any
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkContainer, CTkWidget
-from .core_rendering import CTkCanvas, RoundedRect
+from .core_rendering import CTkCanvas, BorderedRoundedRect
 from .font.ctk_font import CTkFont, FontType
 from .theme import ColorType, TransparentColorType, ThemeManager
 from .utility import pop_from_dict_by_set
@@ -16,6 +16,7 @@ class CTkEntryArgs(TypedDict, total=False):
     height: int
     corner_radius: int
     border_width: int
+    border_spacing: int
     bg_color: TransparentColorType
     fg_color: TransparentColorType
     border_color: ColorType
@@ -30,8 +31,6 @@ class CTkEntry(CTkWidget):
     Entry with rounded corners, border, textvariable support, focus and placeholder.
     For detailed information check out the documentation.
     """
-
-    _minimum_x_padding: int = 6  # minimum padding between tkinter entry and frame border
 
     # attributes that are passed to and managed by the tkinter entry only:
     _valid_tk_entry_attributes: set[str] = {"exportselection", "insertborderwidth", "insertofftime",
@@ -79,7 +78,8 @@ class CTkEntry(CTkWidget):
                                  highlightthickness=0,
                                  width=self._apply_scaling(self._desired_width),
                                  height=self._apply_scaling(self._desired_height))
-        self._rounded_rect = RoundedRect(self._canvas)
+        self._canvas.grid(row=0, column=0, sticky="nsew")
+        self._rounded_rect = BorderedRoundedRect(self._canvas)
 
         self._entry = tkinter.Entry(master=self,
                                     bd=0,
@@ -92,7 +92,6 @@ class CTkEntry(CTkWidget):
         self._bind_targets.append(self._entry)
         self._focus_target = self._entry
 
-        self._create_grid()
         self._activate_placeholder()
         self._create_bindings()
         self._draw(force_colors_update=True)
@@ -104,25 +103,12 @@ class CTkEntry(CTkWidget):
         if sequence is None or sequence == "<FocusOut>":
             self._entry.bind("<FocusOut>", self._entry_focus_out)
 
-    def _create_grid(self) -> None:
-        self._canvas.grid(column=0, row=0, sticky="nswe")
-
-        if self._theme_info["corner_radius"] >= self._minimum_x_padding:
-            self._entry.grid(column=0, row=0, sticky="nswe",
-                             padx=min(self._apply_scaling(self._theme_info["corner_radius"]), round(self._current_height / 2)),
-                             pady=(self._apply_scaling(self._theme_info["border_width"]), self._apply_scaling(self._theme_info["border_width"] + 1)))
-        else:
-            self._entry.grid(column=0, row=0, sticky="nswe",
-                             padx=self._apply_scaling(self._minimum_x_padding),
-                             pady=(self._apply_scaling(self._theme_info["border_width"]), self._apply_scaling(self._theme_info["border_width"] + 1)))
-
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
 
         self._entry.configure(font=self._apply_font_scaling(self._font))
         self._canvas.configure(width=self._apply_scaling(self._desired_width),
                                height=self._apply_scaling(self._desired_height))
-        self._create_grid()
         self._draw()
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
@@ -153,6 +139,9 @@ class CTkEntry(CTkWidget):
                                                         self._apply_scaling(self._theme_info["corner_radius"]),
                                                         self._apply_scaling(self._theme_info["border_width"]))
 
+        if self._rounded_rect.info["spacings_changed"]:
+            self._update_geometry()
+
         if force_colors_update or requires_recoloring:
             fg_color = self._apply_appearance_mode(self._theme_info["fg_color"], if_transparent=self._bg_color)
             if self._placeholder_text_active:
@@ -166,16 +155,23 @@ class CTkEntry(CTkWidget):
             self._entry.configure(bg=fg_color, disabledbackground=fg_color, readonlybackground=fg_color, highlightcolor=fg_color)
             self._entry.configure(fg=text_color, disabledforeground=text_color, insertbackground=text_color)
 
+    def _update_geometry(self) -> None:
+        spacing = self._rounded_rect.info.get("inscribed_spacing", 0)
+        border_spacing = self._apply_scaling(self._theme_info["border_spacing"])
+        self._entry.grid(row=0, column=0, sticky="nsew", padx=spacing + border_spacing, pady=spacing)
+
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkEntryArgs]) -> None:
         if "corner_radius" in kwargs:
             self._theme_info["corner_radius"] = kwargs.pop("corner_radius")
-            self._create_grid()
             require_redraw = True
 
         if "border_width" in kwargs:
             self._theme_info["border_width"] = kwargs.pop("border_width")
-            self._create_grid()
             require_redraw = True
+
+        if "border_spacing" in kwargs:
+            self._theme_info["border_spacing"] = kwargs.pop("border_spacing")
+            self._update_geometry()
 
         if "fg_color" in kwargs:
             self._theme_info["fg_color"] = self._check_color_type(kwargs.pop("fg_color"))

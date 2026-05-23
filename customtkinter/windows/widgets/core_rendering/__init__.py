@@ -3,13 +3,11 @@ import sys
 from .ctk_canvas import CTkCanvas
 from .draw_engine import DRAWING_METHODS
 from .draw_engine import Arrow
-from .draw_engine import BackgroundCorners
 from .draw_engine import Bar
 from .draw_engine import BaseShape
+from .draw_engine import BorderedRoundedRect
 from .draw_engine import Checkmark
-from .draw_engine import ProgressBar
 from .draw_engine import RoundedRect
-from .draw_engine import Slider
 
 CTkCanvas.init_font_character_mapping()
 

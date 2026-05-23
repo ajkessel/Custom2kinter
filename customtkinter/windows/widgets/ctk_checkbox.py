@@ -5,7 +5,7 @@ from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkContainer, CTkWidget
-from .core_rendering import CTkCanvas, RoundedRect, Checkmark
+from .core_rendering import CTkCanvas, BorderedRoundedRect, Checkmark
 from .font.ctk_font import CTkFont, FontType
 from .theme import ColorType, TransparentColorType, ThemeManager
 from .utility import get_proper_cursor
@@ -18,6 +18,7 @@ class CTkCheckBoxArgs(TypedDict, total=False):
     checkbox_height: int
     corner_radius: int
     border_width: int
+    internal_spacing: int
     bg_color: TransparentColorType
     fg_color: ColorType
     border_color: ColorType
@@ -75,11 +76,7 @@ class CTkCheckBox(CTkWidget):
         self._variable_callback_blocked: bool = False
         self._variable_callback_name: str | None = None
 
-        # configure grid system (1x3)
-        self.grid_columnconfigure(0, weight=0)
-        self.grid_columnconfigure(1, weight=0, minsize=self._apply_scaling(6))
-        self.grid_columnconfigure(2, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        self._update_geometry()
 
         self._bg_canvas = CTkCanvas(master=self,
                                     highlightthickness=0,
@@ -92,7 +89,7 @@ class CTkCheckBox(CTkWidget):
                                  width=self._apply_scaling(self._theme_info["checkbox_width"]),
                                  height=self._apply_scaling(self._theme_info["checkbox_height"]))
         self._canvas.grid(row=0, column=0, sticky="e")
-        self._rounded_rect = RoundedRect(self._canvas)
+        self._rounded_rect = BorderedRoundedRect(self._canvas)
         self._checkmark = Checkmark(self._canvas)
         self._bind_targets.append(self._canvas)
 
@@ -133,7 +130,7 @@ class CTkCheckBox(CTkWidget):
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
 
-        self.grid_columnconfigure(1, weight=0, minsize=self._apply_scaling(6))
+        self._update_geometry()
         self._text_label.configure(font=self._apply_font_scaling(self._font))
 
         self._bg_canvas.configure(width=self._apply_scaling(self._desired_width),
@@ -167,20 +164,21 @@ class CTkCheckBox(CTkWidget):
     def _draw(self, force_colors_update: bool = False) -> None:
         super()._draw(force_colors_update)
 
-        requires_recoloring_1 = self._rounded_rect.update(self._apply_scaling(self._theme_info["checkbox_width"]),
-                                                          self._apply_scaling(self._theme_info["checkbox_height"]),
-                                                          self._apply_scaling(self._theme_info["corner_radius"]),
-                                                          self._apply_scaling(self._theme_info["border_width"]))
+        requires_recoloring = self._rounded_rect.update(self._apply_scaling(self._theme_info["checkbox_width"]),
+                                                        self._apply_scaling(self._theme_info["checkbox_height"]),
+                                                        self._apply_scaling(self._theme_info["corner_radius"]),
+                                                        self._apply_scaling(self._theme_info["border_width"]))
 
         if self._check_state:
-            requires_recoloring_2 = self._checkmark.update(self._apply_scaling(self._theme_info["checkbox_width"] / 2),
-                                                           self._apply_scaling(self._theme_info["checkbox_height"] / 2),
-                                                           self._apply_scaling(self._theme_info["checkbox_height"] * 0.58))
+            if (self._checkmark.update(self._apply_scaling(self._theme_info["checkbox_width"] / 2),
+                                       self._apply_scaling(self._theme_info["checkbox_height"] / 2),
+                                       self._apply_scaling(self._theme_info["checkbox_height"] * 0.58)) or
+                force_colors_update):
+                self._checkmark.set_color(self._apply_appearance_mode(self._theme_info["checkmark_color"]))
         else:
-            requires_recoloring_2 = False
             self._checkmark.delete()
 
-        if force_colors_update or requires_recoloring_1 or requires_recoloring_2:
+        if force_colors_update or requires_recoloring:
             self._rounded_rect.raise_()
             self._checkmark.raise_()
 
@@ -205,6 +203,17 @@ class CTkCheckBox(CTkWidget):
 
             self._text_label.configure(bg=bg_color)
 
+    def _update_geometry(self) -> None:
+        # configure grid system (1x3)
+        if self._theme_info["text"]:
+            widget_label_spacing = self._apply_scaling(self._theme_info["internal_spacing"])
+        else:
+            widget_label_spacing = 0
+        self.grid_columnconfigure(0, weight=0)
+        self.grid_columnconfigure(1, weight=0, minsize=widget_label_spacing)
+        self.grid_columnconfigure(2, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkCheckBoxArgs]) -> None:
         require_new_state = False
 
@@ -225,6 +234,10 @@ class CTkCheckBox(CTkWidget):
         if "border_width" in kwargs:
             self._theme_info["border_width"] = kwargs.pop("border_width")
             require_redraw = True
+
+        if "internal_spacing" in kwargs:
+            self._theme_info["internal_spacing"] = kwargs.pop("internal_spacing")
+            self._update_geometry()
 
         if "fg_color" in kwargs:
             self._theme_info["fg_color"] = self._check_color_type(kwargs.pop("fg_color"))
@@ -253,6 +266,7 @@ class CTkCheckBox(CTkWidget):
         if "text" in kwargs:
             self._theme_info["text"] = kwargs.pop("text")
             self._text_label.configure(text=self._theme_info["text"])
+            self._update_geometry()
 
         if "font" in kwargs:
             self._font.remove_size_configure_callback(self._update_font)

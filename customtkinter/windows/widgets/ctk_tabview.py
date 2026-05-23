@@ -5,7 +5,7 @@ from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkContainer, CTkWidget
-from .core_rendering import CTkCanvas, RoundedRect
+from .core_rendering import CTkCanvas, BorderedRoundedRect
 from .theme import AnchorType, ColorType, TransparentColorType, ThemeManager
 from .ctk_frame import CTkFrame
 from .ctk_segmented_button import CTkSegmentedButton, CTkSegmentedButtonArgs
@@ -74,7 +74,7 @@ class CTkTabview(CTkWidget, CTkContainer):
                                  highlightthickness=0,
                                  width=self._apply_scaling(self._desired_width),
                                  height=self._apply_scaling(self._desired_height - self._outer_button_overhang))
-        self._rounded_rect = RoundedRect(self._canvas)
+        self._rounded_rect = BorderedRoundedRect(self._canvas)
         self._focus_target = self._canvas
 
         self._segmented_button = CTkSegmentedButton(self,
@@ -83,8 +83,7 @@ class CTkTabview(CTkWidget, CTkContainer):
                                                     state=state,
                                                     **self._theme_info["segmented_button"])
         self._configure_segmented_button_background_corners()
-        self._configure_grid()
-        self._set_grid_canvas()
+        self._update_geometry()
         self._draw(force_colors_update=True)
 
     def _segmented_button_callback(self, selected_name: str) -> None:
@@ -111,7 +110,7 @@ class CTkTabview(CTkWidget, CTkContainer):
 
         self._canvas.configure(width=self._apply_scaling(self._desired_width),
                                height=self._apply_scaling(self._desired_height - self._outer_button_overhang))
-        self._configure_grid()
+        self._update_geometry()
         self._draw()
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
@@ -132,52 +131,6 @@ class CTkTabview(CTkWidget, CTkContainer):
             else:
                 self._segmented_button.configure(background_corner_colors=(self._fg_color, self._fg_color, self._bg_color, self._bg_color))
 
-    def _configure_grid(self) -> None:
-        """ create 3 x 4 grid system """
-
-        if self._theme_info["anchor"].lower() in ("center", "w", "nw", "n", "ne", "e"):
-            self.grid_rowconfigure(0, weight=0, minsize=0)
-            self.grid_rowconfigure(1, weight=0, minsize=self._apply_scaling(self._outer_button_overhang))
-            self.grid_rowconfigure(2, weight=0, minsize=self._apply_scaling(self._segmented_button.cget("height") - self._outer_button_overhang))
-            self.grid_rowconfigure(3, weight=1)
-        else:
-            self.grid_rowconfigure(0, weight=1)
-            self.grid_rowconfigure(1, weight=0, minsize=self._apply_scaling(self._segmented_button.cget("height") - self._outer_button_overhang))
-            self.grid_rowconfigure(2, weight=0, minsize=self._apply_scaling(self._outer_button_overhang))
-            self.grid_rowconfigure(3, weight=0, minsize=0)
-
-        self.grid_columnconfigure(0, weight=1)
-
-    def _set_grid_canvas(self) -> None:
-        if self._theme_info["anchor"].lower() in ("center", "w", "nw", "n", "ne", "e"):
-            self._canvas.grid(row=2, rowspan=2, column=0, columnspan=1, sticky="nsew")
-        else:
-            self._canvas.grid(row=0, rowspan=2, column=0, columnspan=1, sticky="nsew")
-
-    def _set_grid_segmented_button(self) -> None:
-        """ needs to be called for changes in corner_radius, anchor """
-        anchor = self._theme_info["anchor"].lower()
-        if anchor in ("nw", "w", "sw"):
-            sticky = "nsw"
-        elif anchor in ("ne", "e", "se"):
-            sticky = "nse"
-        else:
-            sticky = "ns"
-        self._segmented_button.grid(row=1, rowspan=2, column=0, columnspan=1,
-                                    padx=self._theme_info["corner_radius"]+self._extra_button_border,
-                                    sticky=sticky) #scaling applied by the method itself
-
-    def _set_grid_current_tab(self) -> None:
-        """ needs to be called for changes in corner_radius, border_width """
-        row = 3 if self._theme_info["anchor"].lower() in ("center", "w", "nw", "n", "ne", "e") else 0
-        pad = max(self._theme_info["corner_radius"], self._theme_info["border_width"])
-        self._tab_dict[self._current_name].grid(row=row, column=0, sticky="nsew", padx=pad, pady=pad)
-
-    def _grid_forget_all_tabs(self, exclude_name: str = "") -> None:
-        for name, frame in self._tab_dict.items():
-            if name != exclude_name:
-                frame.grid_forget()
-
     def _draw(self, force_colors_update: bool = False) -> None:
         super()._draw(force_colors_update)
 
@@ -189,6 +142,10 @@ class CTkTabview(CTkWidget, CTkContainer):
                                                         self._apply_scaling(self._theme_info["corner_radius"]),
                                                         self._apply_scaling(self._theme_info["border_width"]))
 
+        if self._rounded_rect.info["spacings_changed"]:
+            self._update_geometry_segmented_button()
+            self._update_geometry_current_tab()
+
         if force_colors_update or requires_recoloring:
             bg_color = self._apply_appearance_mode(self._bg_color)
 
@@ -197,14 +154,52 @@ class CTkTabview(CTkWidget, CTkContainer):
             self._rounded_rect.set_main_color(self._apply_appearance_mode(self.get_fg_color()))
             self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
 
+    def _update_geometry(self) -> None:
+        """ create 3 x 4 grid system """
+
+        self.grid_columnconfigure(0, weight=1)
+
+        if self._theme_info["anchor"].lower() in ("center", "w", "nw", "n", "ne", "e"):
+            self.grid_rowconfigure(0, weight=0, minsize=0)
+            self.grid_rowconfigure(1, weight=0, minsize=self._apply_scaling(self._outer_button_overhang))
+            self.grid_rowconfigure(2, weight=0, minsize=self._apply_scaling(self._segmented_button.cget("height") - self._outer_button_overhang))
+            self.grid_rowconfigure(3, weight=1)
+
+            self._canvas.grid(row=2, rowspan=2, column=0, columnspan=1, sticky="nsew")
+        else:
+            self.grid_rowconfigure(0, weight=1)
+            self.grid_rowconfigure(1, weight=0, minsize=self._apply_scaling(self._segmented_button.cget("height") - self._outer_button_overhang))
+            self.grid_rowconfigure(2, weight=0, minsize=self._apply_scaling(self._outer_button_overhang))
+            self.grid_rowconfigure(3, weight=0, minsize=0)
+
+            self._canvas.grid(row=0, rowspan=2, column=0, columnspan=1, sticky="nsew")
+
+    def _update_geometry_segmented_button(self) -> None:
+        """ needs to be called for changes in corner_radius, anchor """
+        anchor = self._theme_info["anchor"].lower()
+        if anchor in ("nw", "w", "sw"):
+            sticky = "nsw"
+        elif anchor in ("ne", "e", "se"):
+            sticky = "nse"
+        else:
+            sticky = "ns"
+        spacing = self._rounded_rect.info.get("flat_spacing", 0) + self._apply_scaling(self._extra_button_border)
+        self._segmented_button.grid(row=1, rowspan=2, column=0, columnspan=1,
+                                    padx=spacing, sticky=sticky, apply_scaling=False)
+
+    def _update_geometry_current_tab(self) -> None:
+        """ needs to be called for changes in corner_radius, border_width """
+        if self._current_name:
+            row = 3 if self._theme_info["anchor"].lower() in ("center", "w", "nw", "n", "ne", "e") else 0
+            pad = self._reverse_scaling(self._rounded_rect.info.get("inscribed_spacing", 0))
+            self._tab_dict[self._current_name].grid(row=row, column=0, sticky="nsew", padx=pad, pady=pad)
+
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkTabviewArgs]) -> None:
         propagate_required = False
 
         if "corner_radius" in kwargs:
             self._theme_info["corner_radius"] = kwargs.pop("corner_radius")
-            self._set_grid_segmented_button()
-            self._set_grid_current_tab()
-            self._set_grid_canvas()
+            require_redraw = True
 
         if "border_width" in kwargs:
             self._theme_info["border_width"] = kwargs.pop("border_width")
@@ -230,8 +225,8 @@ class CTkTabview(CTkWidget, CTkContainer):
 
         if "anchor" in kwargs:
             self._theme_info["anchor"] = kwargs.pop("anchor")
-            self._configure_grid()
-            self._set_grid_segmented_button()
+            self._update_geometry()
+            require_redraw = True
 
         if "state" in kwargs:
             self._segmented_button.configure(state=kwargs.pop("state"))
@@ -286,8 +281,8 @@ class CTkTabview(CTkWidget, CTkContainer):
         if len(self._tab_dict) == 1:
             self._current_name = name
             self._segmented_button.set(self._current_name)
-            self._set_grid_segmented_button()
-            self._set_grid_current_tab()
+            self._update_geometry_segmented_button()
+            self._update_geometry_current_tab()
 
         return self._tab_dict[name]
 
@@ -350,7 +345,7 @@ class CTkTabview(CTkWidget, CTkContainer):
 
         self._tab_dict[self._current_name].grid_forget()
         self._current_name = name
-        self._set_grid_current_tab()
+        self._update_geometry_current_tab()
         self._segmented_button.set(name)
 
     def get(self, index: int | None = None) -> str:
@@ -365,7 +360,7 @@ class CTkTabview(CTkWidget, CTkContainer):
         """ Returns index of selected tab, raises ValueError if the tab is missing
         if the parameter is provided, returns the associated index or raises ValueError if no tab is found """
         if name is None:
-            value = self._current_name
+            name = self._current_name
         return self._name_list.index(name)
 
     def len(self) -> int:

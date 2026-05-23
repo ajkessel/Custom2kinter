@@ -7,7 +7,7 @@ from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkContainer, CTkWidget
 from .core_widget_classes.dropdown_menu import DropdownMenu, DropdownMenuArgs
-from .core_rendering import CTkCanvas, RoundedRect, Arrow
+from .core_rendering import CTkCanvas, BorderedRoundedRect, Arrow
 from .font.ctk_font import CTkFont, FontType
 from .theme import AnchorType, ColorType, TransparentColorType, ThemeManager
 from .utility import get_proper_cursor
@@ -17,6 +17,7 @@ class CTkOptionMenuArgs(TypedDict, total=False):
     width: int
     height: int
     corner_radius: int
+    border_spacing: int
     bg_color: TransparentColorType
     fg_color: ColorType
     button_color: ColorType
@@ -67,6 +68,7 @@ class CTkOptionMenu(CTkWidget):
         self._variable: tkinter.StringVar | None = variable
         self._variable_callback_blocked: bool = False
         self._variable_callback_name: str | None = None
+        self._applied_right_section_width: int = -1
         self._values: list[str] = [] if values is None else values
         self._current_value: str = "" if len(self._values) == 0 else self._values[0]
 
@@ -84,7 +86,8 @@ class CTkOptionMenu(CTkWidget):
                                  highlightthickness=0,
                                  width=self._apply_scaling(self._desired_width),
                                  height=self._apply_scaling(self._desired_height))
-        self._rounded_rect = RoundedRect(self._canvas, vertical_split=True)
+        self._canvas.grid(row=0, column=0, sticky="nsew")
+        self._rounded_rect = BorderedRoundedRect(self._canvas)
         self._arrow = Arrow(self._canvas)
         self._bind_targets.append(self._canvas)
 
@@ -159,24 +162,20 @@ class CTkOptionMenu(CTkWidget):
     def _draw(self, force_colors_update: bool = False) -> None:
         super()._draw(force_colors_update)
 
-        left_section_width = self._current_width - self._current_height
-        min_spacing = self._apply_scaling(3)
-
-        self._canvas.grid(row=0, column=0, sticky="nsew")
-        self._text_label.grid(row=0, column=0, sticky="nsew",
-                              padx=(max(self._apply_scaling(self._theme_info["corner_radius"]), min_spacing),
-                                    max(self._current_width - left_section_width + min_spacing, min_spacing)))
-
         requires_recoloring_1 = self._rounded_rect.update(self._current_width,
                                                           self._current_height,
                                                           self._apply_scaling(self._theme_info["corner_radius"]),
                                                           0,
-                                                          left_section_width)
+                                                          left_section_width=self._current_width - self._current_height)
 
-        requires_recoloring_2 = self._arrow.update(self._current_width - (self._current_height / 2),
+        requires_recoloring_2 = self._arrow.update((self._rounded_rect.info.get("left_section_width", 0) + self._current_width) / 2,
                                                    self._current_height / 2,
                                                    self._current_height / 3,
                                                    180)
+
+        if (self._rounded_rect.info["spacings_changed"] or
+            abs(self._applied_right_section_width - self._rounded_rect.info.get("right_section_width", 0)) > 1):
+            self._update_geometry()
 
         if force_colors_update or requires_recoloring_1 or requires_recoloring_2:
             self._rounded_rect.raise_()
@@ -197,10 +196,21 @@ class CTkOptionMenu(CTkWidget):
 
         self._canvas.update_idletasks()
 
+    def _update_geometry(self) -> None:
+        self._applied_right_section_width = self._rounded_rect.info.get("right_section_width", 0)
+        border_spacing = self._apply_scaling(self._theme_info["border_spacing"])
+        self._text_label.grid(row=0, column=0, sticky="ew",
+                              padx=(self._rounded_rect.info.get("inscribed_spacing", 0) + border_spacing,
+                                    self._applied_right_section_width + border_spacing))
+
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkOptionMenuArgs]) -> None:
         if "corner_radius" in kwargs:
             self._theme_info["corner_radius"] = kwargs.pop("corner_radius")
             require_redraw = True
+
+        if "border_spacing" in kwargs:
+            self._theme_info["border_spacing"] = kwargs.pop("border_spacing")
+            self._update_geometry()
 
         if "fg_color" in kwargs:
             self._theme_info["fg_color"] = self._check_color_type(kwargs.pop("fg_color"))

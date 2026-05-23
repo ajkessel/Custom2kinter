@@ -5,7 +5,7 @@ from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkContainer, CTkWidget
-from .core_rendering import CTkCanvas, RoundedRect
+from .core_rendering import CTkCanvas, BorderedRoundedRect
 from .font.ctk_font import CTkFont, FontType
 from .theme import ColorType, TransparentColorType, ThemeManager
 from .utility import get_proper_cursor
@@ -19,6 +19,7 @@ class CTkRadioButtonArgs(TypedDict, total=False):
     corner_radius: int
     border_width_checked: int
     border_width_unchecked: int
+    internal_spacing: int
     bg_color: TransparentColorType
     fg_color: ColorType
     border_color: ColorType
@@ -73,11 +74,7 @@ class CTkRadioButton(CTkWidget):
         self._variable_callback_blocked: bool = False
         self._check_state: bool = False
 
-        # configure grid system (3x1)
-        self.grid_columnconfigure(0, weight=0)
-        self.grid_columnconfigure(1, weight=0, minsize=self._apply_scaling(6))
-        self.grid_columnconfigure(2, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        self._update_geometry()
 
         self._bg_canvas = CTkCanvas(master=self,
                                     highlightthickness=0,
@@ -90,7 +87,7 @@ class CTkRadioButton(CTkWidget):
                                  width=self._apply_scaling(self._theme_info["radiobutton_width"]),
                                  height=self._apply_scaling(self._theme_info["radiobutton_height"]))
         self._canvas.grid(row=0, column=0)
-        self._rounded_rect = RoundedRect(self._canvas)
+        self._rounded_rect = BorderedRoundedRect(self._canvas)
         self._bind_targets.append(self._canvas)
 
         self._text_label = tkinter.Label(master=self,
@@ -129,7 +126,7 @@ class CTkRadioButton(CTkWidget):
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
 
-        self.grid_columnconfigure(1, weight=0, minsize=self._apply_scaling(6))
+        self._update_geometry()
         self._text_label.configure(font=self._apply_font_scaling(self._font))
 
         self._bg_canvas.configure(width=self._apply_scaling(self._desired_width),
@@ -187,6 +184,16 @@ class CTkRadioButton(CTkWidget):
             else:
                 self._text_label.configure(fg=self._apply_appearance_mode(self._theme_info["text_color"]))
 
+    def _update_geometry(self) -> None:
+        # configure grid system (1x3)
+        if self._theme_info["text"]:
+            widget_label_spacing = self._apply_scaling(self._theme_info["internal_spacing"])
+        else:
+            widget_label_spacing = 0
+        self.grid_columnconfigure(0, weight=0)
+        self.grid_columnconfigure(1, weight=0, minsize=widget_label_spacing)
+        self.grid_columnconfigure(2, weight=1)
+        self.grid_rowconfigure(0, weight=1)
 
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkRadioButtonArgs]) -> None:
         require_new_state = False
@@ -213,6 +220,10 @@ class CTkRadioButton(CTkWidget):
             self._theme_info["border_width_checked"] = kwargs.pop("border_width_checked")
             require_redraw = True
 
+        if "internal_spacing" in kwargs:
+            self._theme_info["internal_spacing"] = kwargs.pop("internal_spacing")
+            self._update_geometry()
+
         if "fg_color" in kwargs:
             self._theme_info["fg_color"] = self._check_color_type(kwargs.pop("fg_color"))
             require_redraw = True
@@ -236,6 +247,7 @@ class CTkRadioButton(CTkWidget):
         if "text" in kwargs:
             self._theme_info["text"] = kwargs.pop("text")
             self._text_label.configure(text=self._theme_info["text"])
+            self._update_geometry()
 
         if "font" in kwargs:
             self._font.remove_size_configure_callback(self._update_font)

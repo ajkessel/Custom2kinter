@@ -6,14 +6,15 @@ from typing import Any
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkContainer, CTkWidget
-from .core_rendering import CTkCanvas, RoundedRect, ProgressBar
+from .core_rendering import CTkCanvas, BorderedRoundedRect, RoundedRect
 from .theme import ColorType, TransparentColorType, ThemeManager
+from .utility import get_width_height_from_orientation
 
 
 class CTkProgressBarArgs(TypedDict, total=False):
     orientation: Literal["horizontal", "vertical"]
     thickness: int
-    lenght: int
+    length: int
     corner_radius: int
     border_width: int
     bg_color: TransparentColorType
@@ -47,12 +48,9 @@ class CTkProgressBar(CTkWidget):
                                                                transparency=key == "bg_color")
 
         # set default dimensions according to orientation
-        if self._theme_info["orientation"] == "vertical":
-            width = self._theme_info["thickness"]
-            height = self._theme_info["lenght"]
-        else:
-            width = self._theme_info["lenght"]
-            height = self._theme_info["thickness"]
+        width, height = get_width_height_from_orientation(self._theme_info["orientation"],
+                                                          self._theme_info["thickness"],
+                                                          self._theme_info["length"])
 
         super().__init__(master=master,
                          bg_color=self._theme_info["bg_color"],
@@ -79,8 +77,8 @@ class CTkProgressBar(CTkWidget):
                                  width=self._apply_scaling(self._desired_width),
                                  height=self._apply_scaling(self._desired_height))
         self._canvas.place(x=0, y=0, relwidth=1, relheight=1)
-        self._rounded_rect = RoundedRect(self._canvas)
-        self._progress_bar = ProgressBar(self._canvas)
+        self._rounded_rect = BorderedRoundedRect(self._canvas)
+        self._progress_bar = RoundedRect(self._canvas)
         self._bind_targets.append(self._canvas)
         self._focus_target = self._canvas
 
@@ -115,25 +113,34 @@ class CTkProgressBar(CTkWidget):
     def _draw(self, force_colors_update: bool = False) -> None:
         super()._draw(force_colors_update)
 
+        requires_recoloring_1 = self._rounded_rect.update(self._current_width,
+                                                          self._current_height,
+                                                          self._apply_scaling(self._theme_info["corner_radius"]),
+                                                          self._apply_scaling(self._theme_info["border_width"]))
+
+        info = self._rounded_rect.info.get
+        x_start = y_start = info("border_width", 0)
+        width = info("inner_width", 0)
+        height = info("inner_height", 0)
+
         if self._mode == "determinate":
             progress_value_1 = 0.0
             progress_value_2 = self._determinate_value
         else:
             progress_value = (math.sin(self._indeterminate_value * math.pi / 40) + 1) / 2
-            progress_value_1 = min(1.0, progress_value + (self._indeterminate_width / 2))
-            progress_value_2 = max(0.0, progress_value - (self._indeterminate_width / 2))
+            progress_value_1 = max(0.0, progress_value - (self._indeterminate_width / 2))
+            progress_value_2 = min(1.0, progress_value + (self._indeterminate_width / 2))
 
-        common_args = (self._current_width,
-                       self._current_height,
-                       self._apply_scaling(self._theme_info["corner_radius"]),
-                       self._apply_scaling(self._theme_info["border_width"]))
+        if self._theme_info["orientation"] == "horizontal":
+            x_start += width * progress_value_1
+            width *= (progress_value_2 - progress_value_1)
+        else:
+            y_start += height * (1 - progress_value_2)
+            height *= (progress_value_2 - progress_value_1)
 
-        requires_recoloring_1 = self._rounded_rect.update(*common_args)
-
-        requires_recoloring_2 = self._progress_bar.update(*common_args,
-                                                          self._theme_info["orientation"],
-                                                          progress_value_1,
-                                                          progress_value_2)
+        requires_recoloring_2 = self._progress_bar.update(x_start, y_start,
+                                                          width, height,
+                                                          info("inner_corner_radius", 0))
 
         if force_colors_update or requires_recoloring_1 or requires_recoloring_2:
             self._rounded_rect.raise_()
@@ -145,6 +152,14 @@ class CTkProgressBar(CTkWidget):
             self._progress_bar.set_color(self._apply_appearance_mode(self._theme_info["progress_color"]))
 
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkProgressBarArgs]) -> None:
+        if "thickness" in kwargs:
+            self._theme_info["thickness"] = kwargs.pop("thickness")
+            kwargs["width" if self._theme_info["orientation"] == "vertical" else "height"] = self._theme_info["thickness"]
+
+        if "length" in kwargs:
+            self._theme_info["length"] = kwargs.pop("length")
+            kwargs["height" if self._theme_info["orientation"] == "vertical" else "width"] = self._theme_info["length"]
+
         if "corner_radius" in kwargs:
             self._theme_info["corner_radius"] = kwargs.pop("corner_radius")
             require_redraw = True

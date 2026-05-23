@@ -5,7 +5,7 @@ from typing import Any, Callable, TYPE_CHECKING
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkContainer, CTkWidget
-from .core_rendering import CTkCanvas, BackgroundCorners, RoundedRect
+from .core_rendering import CTkCanvas, BorderedRoundedRect, RoundedRect
 from .theme import AnchorType, ColorType, TransparentColorType, ThemeManager
 from .font.ctk_font import CTkFont, FontType
 from .image import CTkImage
@@ -21,6 +21,7 @@ class CTkButtonArgs(TypedDict, total=False):
     corner_radius: int
     border_width: int
     border_spacing: int
+    internal_spacing: int
     bg_color: TransparentColorType
     fg_color: TransparentColorType
     border_color: ColorType
@@ -28,8 +29,6 @@ class CTkButtonArgs(TypedDict, total=False):
     text_color: ColorType
     text_color_disabled: ColorType
     hover: bool
-    round_width_to_even_numbers: bool
-    round_height_to_even_numbers: bool
     text: str
     font: FontType
     anchor: AnchorType
@@ -41,8 +40,6 @@ class CTkButton(CTkWidget):
     Button with rounded corners, border, hover effect, image support, click command and textvariable.
     For detailed information check out the documentation.
     """
-
-    _image_label_spacing: int = 6
 
     def __init__(self,
                  master: CTkContainer,
@@ -66,8 +63,6 @@ class CTkButton(CTkWidget):
                          bg_color=self._theme_info["bg_color"],
                          width=self._theme_info["width"],
                          height=self._theme_info["height"])
-
-        self._theme_info["corner_radius"] = min(self._theme_info["corner_radius"], round(self._desired_height / 2))
 
         # rendering options
         self._background_corner_colors: tuple[ColorType, ...] | None = background_corner_colors
@@ -96,12 +91,8 @@ class CTkButton(CTkWidget):
                                  width=self._apply_scaling(self._desired_width),
                                  height=self._apply_scaling(self._desired_height))
         self._canvas.grid(row=0, column=0, rowspan=5, columnspan=5, sticky="nsew")
-        self._background_corners = BackgroundCorners(self._canvas,
-                                                     self._theme_info["round_width_to_even_numbers"],
-                                                     self._theme_info["round_height_to_even_numbers"])
-        self._rounded_rect = RoundedRect(self._canvas,
-                                         self._theme_info["round_width_to_even_numbers"],
-                                         self._theme_info["round_height_to_even_numbers"])
+        self._background_corners = RoundedRect(self._canvas)
+        self._rounded_rect = BorderedRoundedRect(self._canvas)
         self._bind_targets.append(self._canvas)
 
         # configure cursor and initial draw
@@ -129,7 +120,6 @@ class CTkButton(CTkWidget):
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
 
-        self._create_grid()
         self._update_image()
 
         if self._text_label is not None:
@@ -178,13 +168,13 @@ class CTkButton(CTkWidget):
         super()._draw(force_colors_update)
 
         if self._background_corner_colors is not None:
-            if (self._background_corners.update(self._current_width,
-                                                self._current_height) or
+            if (self._background_corners.update(0, 0,
+                                                self._current_width, self._current_height,
+                                                0,
+                                                self._current_width / 2, self._current_height / 2) or
                 force_colors_update):
-                self._background_corners.set_colors(self._apply_appearance_mode(self._background_corner_colors[0]),
-                                                    self._apply_appearance_mode(self._background_corner_colors[1]),
-                                                    self._apply_appearance_mode(self._background_corner_colors[2]),
-                                                    self._apply_appearance_mode(self._background_corner_colors[3]))
+                for idx, section in enumerate(("top_left", "top_right", "bottom_right", "bottom_left")):
+                    self._background_corners.set_color(self._apply_appearance_mode(self._background_corner_colors[idx]), section)
         else:
             self._background_corners.delete()
 
@@ -198,12 +188,13 @@ class CTkButton(CTkWidget):
             self._rounded_rect.raise_()
 
             self._canvas.configure(bg=self._apply_appearance_mode(self._bg_color))
-            self._rounded_rect.set_main_color(self._apply_appearance_mode(self._theme_info["fg_color"],if_transparent=self._bg_color))
+            self._rounded_rect.set_main_color(self._apply_appearance_mode(self._theme_info["fg_color"], if_transparent=self._bg_color))
             self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
+
+        require_regrid = False
 
         # create text label if text given
         if self._theme_info["text"] is not None and self._theme_info["text"] != "":
-
             if self._text_label is None:
                 self._text_label = tkinter.Label(master=self,
                                                  font=self._apply_font_scaling(self._font),
@@ -213,7 +204,7 @@ class CTkButton(CTkWidget):
                                                  pady=0,
                                                  borderwidth=1,
                                                  textvariable=self._textvariable)
-                self._create_grid()
+                require_regrid = True
 
                 self._text_label.bind("<Enter>", self._on_enter)
                 self._text_label.bind("<Leave>", self._on_leave)
@@ -236,14 +227,14 @@ class CTkButton(CTkWidget):
                 self._focus_target = None
                 self._text_label.destroy()
                 self._text_label = None
-                self._create_grid()
+                require_regrid = True
 
         # create image label if image given
         if self._image is not None:
             if self._image_label is None:
                 self._image_label = tkinter.Label(master=self, anchor=self._theme_info["anchor"])
                 self._update_image()
-                self._create_grid()
+                require_regrid = True
 
                 self._image_label.bind("<Enter>", self._on_enter)
                 self._image_label.bind("<Leave>", self._on_leave)
@@ -264,54 +255,50 @@ class CTkButton(CTkWidget):
                     self._focus_target = None
                 self._image_label.destroy()
                 self._image_label = None
-                self._create_grid()
+                require_regrid = True
 
-    def _create_grid(self) -> None:
+        if self._rounded_rect.info["spacings_changed"] or require_regrid:
+            self._update_geometry()
+
+    def _update_geometry(self) -> None:
         """ configure grid system (5x5) """
 
         # Outer rows and columns have weight of 1000 to overpower the rows and columns of the label and image with weight 1.
         # Rows and columns of image and label need weight of 1 to collapse in case of missing space on the button,
         # so image and label need sticky option to stick together in the center, and therefore outer rows and columns
         # need weight of 100 in case of other anchor than center.
-        n_padding_weight, s_padding_weight, e_padding_weight, w_padding_weight = 1000, 1000, 1000, 1000
-        anchor = self._theme_info["anchor"]
+        padding_weights = {}
+        for anchor_char in "nsew":
+            padding_weights[anchor_char] = 1000
+        anchor = self._theme_info["anchor"].lower()
         if anchor != "center":
-            if "n" in anchor:
-                n_padding_weight, s_padding_weight = 0, 1000
-            if "s" in anchor:
-                n_padding_weight, s_padding_weight = 1000, 0
-            if "e" in anchor:
-                e_padding_weight, w_padding_weight = 1000, 0
-            if "w" in anchor:
-                e_padding_weight, w_padding_weight = 0, 1000
+            for anchor_char in anchor:
+                padding_weights[anchor_char] = 0
 
-        scaled_minsize_rows = self._apply_scaling(max(self._theme_info["border_width"] + 1, self._theme_info["border_spacing"]))
-        scaled_minsize_columns = self._apply_scaling(max(self._theme_info["corner_radius"], self._theme_info["border_width"] + 1, self._theme_info["border_spacing"]))
-        compound = self._theme_info["compound"]
+        spacing = self._rounded_rect.info.get("inscribed_spacing", 0) + self._apply_scaling(self._theme_info["border_spacing"])
+        if self._image_label is not None and self._text_label is not None:
+            image_label_spacing = self._apply_scaling(self._theme_info["internal_spacing"])
+        else:
+            image_label_spacing = 0
 
-        self.grid_rowconfigure(0, weight=n_padding_weight, minsize=scaled_minsize_rows)
-        self.grid_rowconfigure(4, weight=s_padding_weight, minsize=scaled_minsize_rows)
-        self.grid_columnconfigure(0, weight=e_padding_weight, minsize=scaled_minsize_columns)
-        self.grid_columnconfigure(4, weight=w_padding_weight, minsize=scaled_minsize_columns)
+        self.grid_rowconfigure(0, weight=padding_weights["n"], minsize=spacing)
+        self.grid_rowconfigure(4, weight=padding_weights["s"], minsize=spacing)
+        self.grid_columnconfigure(0, weight=padding_weights["w"], minsize=spacing)
+        self.grid_columnconfigure(4, weight=padding_weights["e"], minsize=spacing)
 
+        compound = self._theme_info["compound"].lower()
         if compound in ("right", "left"):
-            self.grid_rowconfigure(2, weight=1)
-            if self._image_label is not None and self._text_label is not None:
-                self.grid_columnconfigure(2, weight=0, minsize=self._apply_scaling(self._image_label_spacing))
-            else:
-                self.grid_columnconfigure(2, weight=0, minsize=0)
+            self.grid_columnconfigure((1, 3), weight=1)
+            self.grid_columnconfigure(2, weight=0, minsize=image_label_spacing)
 
             self.grid_rowconfigure((1, 3), weight=0)
-            self.grid_columnconfigure((1, 3), weight=1)
+            self.grid_rowconfigure(2, weight=1)
         else:
-            self.grid_columnconfigure(2, weight=1)
-            if self._image_label is not None and self._text_label is not None:
-                self.grid_rowconfigure(2, weight=0, minsize=self._apply_scaling(self._image_label_spacing))
-            else:
-                self.grid_rowconfigure(2, weight=0, minsize=0)
+            self.grid_rowconfigure((1, 3), weight=1)
+            self.grid_rowconfigure(2, weight=0, minsize=image_label_spacing)
 
             self.grid_columnconfigure((1, 3), weight=0)
-            self.grid_rowconfigure((1, 3), weight=1)
+            self.grid_columnconfigure(2, weight=1)
 
         if compound == "right":
             if self._image_label is not None:
@@ -337,18 +324,19 @@ class CTkButton(CTkWidget):
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkButtonArgs]) -> None:
         if "corner_radius" in kwargs:
             self._theme_info["corner_radius"] = kwargs.pop("corner_radius")
-            self._create_grid()
             require_redraw = True
 
         if "border_width" in kwargs:
             self._theme_info["border_width"] = kwargs.pop("border_width")
-            self._create_grid()
             require_redraw = True
 
         if "border_spacing" in kwargs:
             self._theme_info["border_spacing"] = kwargs.pop("border_spacing")
-            self._create_grid()
-            require_redraw = True
+            self._update_geometry()
+
+        if "internal_spacing" in kwargs:
+            self._theme_info["internal_spacing"] = kwargs.pop("internal_spacing")
+            self._update_geometry()
 
         if "fg_color" in kwargs:
             self._theme_info["fg_color"] = self._check_color_type(kwargs.pop("fg_color"), transparency=True)
@@ -417,6 +405,7 @@ class CTkButton(CTkWidget):
 
         if "compound" in kwargs:
             self._theme_info["compound"] = kwargs.pop("compound")
+            self._update_geometry()
             require_redraw = True
 
         if "anchor" in kwargs:
@@ -425,7 +414,7 @@ class CTkButton(CTkWidget):
                 self._text_label.configure(anchor=self._theme_info["anchor"])
             if self._image_label is not None:
                 self._image_label.configure(anchor=self._theme_info["anchor"])
-            self._create_grid()
+            self._update_geometry()
             require_redraw = True
 
         super().configure(require_redraw=require_redraw, **kwargs)

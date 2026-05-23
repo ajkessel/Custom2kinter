@@ -5,20 +5,22 @@ from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkContainer, CTkWidget
-from .core_rendering import CTkCanvas, RoundedRect, Slider
+from .core_rendering import CTkCanvas, BorderedRoundedRect, RoundedRect
 from .font.ctk_font import CTkFont, FontType
 from .theme import ColorType, TransparentColorType, ThemeManager
-from .utility import get_proper_cursor
+from .utility import get_proper_cursor, get_width_height_from_orientation
 
 
 class CTkSwitchArgs(TypedDict, total=False):
+    orientation: Literal["horizontal", "vertical"]
+    thickness: int
+    length: int
     width: int
     height: int
-    switch_width: int
-    switch_height: int
     button_length: int
     corner_radius: int
     border_width: int
+    internal_spacing: int
     bg_color: TransparentColorType
     fg_color_checked: ColorType
     fg_color_unchecked: ColorType
@@ -78,11 +80,7 @@ class CTkSwitch(CTkWidget):
         self._hover_state: bool = False
         self._check_state: bool = False  # True if switch is activated
 
-        # configure grid system (3x1)
-        self.grid_columnconfigure(0, weight=0)
-        self.grid_columnconfigure(1, weight=0, minsize=self._apply_scaling(6))
-        self.grid_columnconfigure(2, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        self._update_geometry()
 
         self._bg_canvas = CTkCanvas(master=self,
                                     highlightthickness=0,
@@ -90,13 +88,17 @@ class CTkSwitch(CTkWidget):
                                     height=self._apply_scaling(self._desired_height))
         self._bg_canvas.grid(row=0, column=0, columnspan=3, sticky="nswe")
 
+        width, height = get_width_height_from_orientation(self._theme_info["orientation"],
+                                                          self._theme_info["thickness"],
+                                                          self._theme_info["length"])
+
         self._canvas = CTkCanvas(master=self,
                                  highlightthickness=0,
-                                 width=self._apply_scaling(self._theme_info["switch_width"]),
-                                 height=self._apply_scaling(self._theme_info["switch_height"]))
+                                 width=self._apply_scaling(width),
+                                 height=self._apply_scaling(height))
         self._canvas.grid(row=0, column=0, sticky="")
-        self._rounded_rect = RoundedRect(self._canvas)
-        self._slider = Slider(self._canvas)
+        self._rounded_rect = BorderedRoundedRect(self._canvas)
+        self._slider = RoundedRect(self._canvas)
         self._bind_targets.append(self._canvas)
 
         self._text_label = tkinter.Label(master=self,
@@ -135,13 +137,17 @@ class CTkSwitch(CTkWidget):
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
 
-        self.grid_columnconfigure(1, weight=0, minsize=self._apply_scaling(6))
+        width, height = get_width_height_from_orientation(self._theme_info["orientation"],
+                                                          self._theme_info["thickness"],
+                                                          self._theme_info["length"])
+
+        self._update_geometry()
         self._text_label.configure(font=self._apply_font_scaling(self._font))
 
         self._bg_canvas.configure(width=self._apply_scaling(self._desired_width),
                                   height=self._apply_scaling(self._desired_height))
-        self._canvas.configure(width=self._apply_scaling(self._theme_info["switch_width"]),
-                               height=self._apply_scaling(self._theme_info["switch_height"]))
+        self._canvas.configure(width=self._apply_scaling(width),
+                               height=self._apply_scaling(height))
         self._draw()
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
@@ -176,19 +182,31 @@ class CTkSwitch(CTkWidget):
     def _draw(self, force_colors_update: bool = False) -> None:
         super()._draw(force_colors_update)
 
-        common_args = (self._apply_scaling(self._theme_info["switch_width"]),
-                       self._apply_scaling(self._theme_info["switch_height"]),
-                       self._apply_scaling(self._theme_info["corner_radius"]))
+        width, height = get_width_height_from_orientation(self._theme_info["orientation"],
+                                                          self._apply_scaling(self._theme_info["thickness"]),
+                                                          self._apply_scaling(self._theme_info["length"]))
 
-        requires_recoloring_1 = self._rounded_rect.update(*common_args,
+        requires_recoloring_1 = self._rounded_rect.update(width,
+                                                          height,
+                                                          self._apply_scaling(self._theme_info["corner_radius"]),
                                                           self._apply_scaling(self._theme_info["border_width"]))
 
-        requires_recoloring_2 = self._slider.update(*common_args,
-                                                    0,
-                                                    common_args[2],
-                                                    "horizontal",
-                                                    slider_value=1.0 if self._check_state else 0.0,
-                                                    button_length=self._apply_scaling(self._theme_info["button_length"]))
+        corner_radius = self._rounded_rect.info.get("corner_radius", 0)
+        button_length = self._apply_scaling(self._theme_info["button_length"]) + 2 * corner_radius
+        spacing = max(0, self._rounded_rect.info.get("flat_spacing", 0) - corner_radius)
+
+        if self._theme_info["orientation"] == "horizontal":
+            x_start = spacing + (width - button_length - 2 * spacing) * int(self._check_state)
+            y_start = 0
+            width = button_length
+        else:
+            x_start = 0
+            y_start = spacing + (height - button_length- 2 * spacing) * int(self._check_state)
+            height = button_length
+
+        requires_recoloring_2 = self._slider.update(x_start, y_start,
+                                                    width, height,
+                                                    corner_radius)
 
         if force_colors_update or requires_recoloring_1 or requires_recoloring_2:
             self._rounded_rect.raise_()
@@ -213,19 +231,35 @@ class CTkSwitch(CTkWidget):
             else:
                 self._text_label.configure(fg=self._apply_appearance_mode(self._theme_info["text_color"]))
 
+    def _update_geometry(self) -> None:
+        # configure grid system (1x3)
+        if self._theme_info["text"]:
+            widget_label_spacing = self._apply_scaling(self._theme_info["internal_spacing"])
+        else:
+            widget_label_spacing = 0
+        self.grid_columnconfigure(0, weight=0)
+        self.grid_columnconfigure(1, weight=0, minsize=widget_label_spacing)
+        self.grid_columnconfigure(2, weight=1)
+        self.grid_rowconfigure(0, weight=1)
 
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkSwitchArgs]) -> None:
         require_new_state = False
+        require_canvas_configure = False
 
-        if "switch_width" in kwargs:
-            self._theme_info["switch_width"] = kwargs.pop("switch_width")
-            self._canvas.configure(width=self._apply_scaling(self._theme_info["switch_width"]))
-            require_redraw = True
+        if "thickness" in kwargs:
+            self._theme_info["thickness"] = kwargs.pop("thickness")
+            require_canvas_configure = True
 
-        if "switch_height" in kwargs:
-            self._theme_info["switch_height"] = kwargs.pop("switch_height")
-            self._canvas.configure(height=self._apply_scaling(self._theme_info["switch_height"]))
-            require_redraw = True
+        if "length" in kwargs:
+            self._theme_info["length"] = kwargs.pop("length")
+            require_canvas_configure = True
+
+        if require_canvas_configure:
+            width, height = get_width_height_from_orientation(self._theme_info["orientation"],
+                                                              self._theme_info["thickness"],
+                                                              self._theme_info["length"])
+            self._canvas.configure(width=self._apply_scaling(width),
+                                   height=self._apply_scaling(height))
 
         if "corner_radius" in kwargs:
             self._theme_info["corner_radius"] = kwargs.pop("corner_radius")
@@ -238,6 +272,10 @@ class CTkSwitch(CTkWidget):
         if "button_length" in kwargs:
             self._theme_info["button_length"] = kwargs.pop("button_length")
             require_redraw = True
+
+        if "internal_spacing" in kwargs:
+            self._theme_info["internal_spacing"] = kwargs.pop("internal_spacing")
+            self._update_geometry()
 
         if "fg_color_checked" in kwargs:
             self._theme_info["fg_color_checked"] = self._check_color_type(kwargs.pop("fg_color_checked"))
@@ -270,6 +308,7 @@ class CTkSwitch(CTkWidget):
         if "text" in kwargs:
             self._theme_info["text"] = kwargs.pop("text")
             self._text_label.configure(text=self._theme_info["text"])
+            self._update_geometry()
 
         if "font" in kwargs:
             self._font.remove_size_configure_callback(self._update_font)

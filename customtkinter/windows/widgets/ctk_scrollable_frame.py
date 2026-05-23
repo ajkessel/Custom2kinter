@@ -24,6 +24,7 @@ class CTkScrollableFrameArgs(TypedDict, total=False):
     scrollbar: CTkScrollbarArgs
     label: CTkLabelArgs
 
+
 class CTkScrollableFrame(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTkContainer):
     def __init__(self,
                  master: CTkContainer,
@@ -59,7 +60,7 @@ class CTkScrollableFrame(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBa
         CTkScalingBaseClass.__init__(self, scaling_type="widget")
         CTkContainer.__init__(self, fg_color="transparent")
 
-        self._create_grid()
+        self._update_geometry()
         self._create_bindings()
         self._create_window_id: int = self._parent_canvas.create_window(0, 0, window=self, anchor="nw")
 
@@ -96,7 +97,7 @@ class CTkScrollableFrame(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBa
         CTkAppearanceModeBaseClass.destroy(self)
         CTkScalingBaseClass.destroy(self)
 
-    def _create_grid(self) -> None:
+    def _update_geometry(self) -> None:
         border_spacing = self._apply_scaling(self._parent_frame.cget("corner_radius") + self._parent_frame.cget("border_width"))
         border_padding = (0, self._parent_frame.cget("border_width") + 1)
 
@@ -154,7 +155,7 @@ class CTkScrollableFrame(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBa
         # which calls the original method but also updates this widget and propagates the
         # fg_color to its children
         self._pf_original_configure(**kwargs)
-        self._create_grid()
+        self._update_geometry()
         self._draw(force_colors_update=True)
         self.propagate_fg_color(self.winfo_children())
 

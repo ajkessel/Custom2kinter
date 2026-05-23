@@ -79,7 +79,6 @@ class CTkInputDialog(CTkToplevel):
 
         button_kwargs = self._theme_id_info["button"]
         button_kwargs["font"] = self._font
-        button_kwargs["width"] = 100
 
         self._ok_button = CTkButton(master=self,
                                     command=self._ok_event,

@@ -73,3 +73,15 @@ def get_proper_cursor(mode: Literal["normal", "clickable"]) -> str | None:
         elif sys.platform.startswith("win"):
             retval="hand2"
     return retval
+
+
+def get_width_height_from_orientation(orientation: Literal["horizontal", "vertical"],
+                                      thickness: int,
+                                      length: int) -> tuple[int, int]:
+    if orientation == "vertical":
+        width = thickness
+        height = length
+    else:
+        width = length
+        height = thickness
+    return width, height

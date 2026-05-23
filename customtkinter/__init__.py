@@ -6,6 +6,7 @@ from tkinter import Variable, StringVar, IntVar, DoubleVar, BooleanVar
 from tkinter.constants import *
 import tkinter.filedialog as filedialog
 from typing_extensions import Literal
+from PIL import Image
 
 # import manager classes
 from .windows.widgets.appearance_mode import AppearanceModeTracker
@@ -14,15 +15,13 @@ from .windows.widgets.scaling import ScalingTracker
 from .windows.widgets.theme import ThemeManager
 from .windows.widgets.theme import ColorType
 from .windows.widgets.theme import TransparentColorType
-from .windows.widgets.core_rendering.draw_engine import DRAWING_METHODS
-from .windows.widgets.core_rendering.draw_engine import Arrow
-from .windows.widgets.core_rendering.draw_engine import BackgroundCorners
-from .windows.widgets.core_rendering.draw_engine import Bar
-from .windows.widgets.core_rendering.draw_engine import BaseShape
-from .windows.widgets.core_rendering.draw_engine import Checkmark
-from .windows.widgets.core_rendering.draw_engine import ProgressBar
-from .windows.widgets.core_rendering.draw_engine import RoundedRect
-from .windows.widgets.core_rendering.draw_engine import Slider
+from .windows.widgets.core_rendering import DRAWING_METHODS
+from .windows.widgets.core_rendering import Arrow
+from .windows.widgets.core_rendering import Bar
+from .windows.widgets.core_rendering import BaseShape
+from .windows.widgets.core_rendering import BorderedRoundedRect
+from .windows.widgets.core_rendering import Checkmark
+from .windows.widgets.core_rendering import RoundedRect
 
 # import base widgets
 from .windows.widgets.core_rendering import CTkCanvas
@@ -129,6 +128,9 @@ class _Showroom(CTk):
 
         self.new_instance_requested: bool = False
 
+        customtkinter_directory = os.path.dirname(os.path.abspath(__file__))
+        self.image = CTkImage(Image.open(os.path.join(customtkinter_directory, "assets", "icons", "CustomTkinter_icon_Windows.ico")))
+
         # create sidebar frame with widgets
         self.sidebar_frame = CTkFrame(self, width=140, corner_radius=0)
         self.logo_label = CTkLabel(self.sidebar_frame, text="CustomTkinter", font=CTkFont(size=20, weight="bold"))
@@ -172,10 +174,16 @@ class _Showroom(CTk):
         self.button_1 = CTkButton(self.buttons_frame)
         self.button_2 = CTkButton(self.buttons_frame, hover=False, text="No Hover")
         self.button_3 = CTkButton(self.buttons_frame, state="disabled", text="disabled")
+        self.button_4 = CTkButton(self.buttons_frame, text="Max radius", corner_radius=1000)
+        self.button_5 = CTkButton(self.buttons_frame, text="With image", image=self.image)
+        self.button_6 = CTkButton(self.buttons_frame, text="", image=self.image, fg_color="transparent", width=0, height=0)
 
         self.button_1.pack(padx=20, pady=(self.SPACING, 5))
         self.button_2.pack(padx=20, pady=(0, 5))
         self.button_3.pack(padx=20, pady=(0, 5))
+        self.button_4.pack(padx=20, pady=(0, 5))
+        self.button_5.pack(padx=20, pady=(0, 5))
+        self.button_6.pack(padx=20, pady=(0, 5))
 
         # choices
         self.choices_frame: CTkFrame = self.main_tabview.add("Choices")
@@ -185,13 +193,13 @@ class _Showroom(CTk):
         self.combobox_2 = CTkComboBox(self.choices_frame, state="readonly",
                                       values=["readonly", "Value 2", "Value 3", "User can only", "choose a value"])
         self.combobox_2.set("readonly")
-        self.combobox_3 = CTkComboBox(self.choices_frame, state="disabled", values=["disabled"])
+        self.combobox_3 = CTkComboBox(self.choices_frame, state="disabled", values=["disabled"], corner_radius=1000)
         self.combobox_3.set("disabled")
         self.optionmenu1 = CTkOptionMenu(self.choices_frame, values=["CTkOptionMenu", "Value 2", "Value 3"])
-        self.optionmenu2 = CTkOptionMenu(self.choices_frame, values=["disabled", "Value 2", "Value 3"], state="disabled")
+        self.optionmenu2 = CTkOptionMenu(self.choices_frame, values=["disabled", "Value 2", "Value 3"], state="disabled", corner_radius=1000)
         self.seg_button1 = CTkSegmentedButton(self.choices_frame, values=["CTkSegmentedButton", "Value 2", "Value 3"])
         self.seg_button1.set("CTkSegmentedButton")
-        self.seg_button2 = CTkSegmentedButton(self.choices_frame, values=["vertical", "Value 2", "Value 3"], orientation="vertical")
+        self.seg_button2 = CTkSegmentedButton(self.choices_frame, values=["vertical", "Max radius", "Value 3"], orientation="vertical", corner_radius=1000)
         self.seg_button2.set("vertical")
 
         self.combobox_1.pack(padx=20, pady=(self.SPACING, 5))
@@ -204,41 +212,50 @@ class _Showroom(CTk):
 
         # text
         self.text_frame: CTkFrame = self.main_tabview.add("Text")
-        self.label = CTkLabel(self.text_frame, text="CTkLabel", height=1)
+        self.label_1 = CTkLabel(self.text_frame, text="CTkLabel", height=1)
+        self.label_2 = CTkLabel(self.text_frame, text="with border", border_width=2, corner_radius=6)
+        self.label_3 = CTkLabel(self.text_frame, text="with image", image=self.image, compound="right")
         self.entry_1 = CTkEntry(self.text_frame, placeholder_text="CTkEntry")
-        self.entry_2 = CTkEntry(self.text_frame, placeholder_text="Password", show="*", justify="center")
-        self.textbox = CTkTextbox(self.text_frame, width=320)
-        self.textbox.insert("0.0", "CTkTextbox\n\n" + "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.\n\n" * 20)
+        self.entry_2 = CTkEntry(self.text_frame, placeholder_text="Password", show="*", justify="center", corner_radius=1000)
+        self.textboxes_frame = CTkFrame(self.text_frame, fg_color="transparent")
+        self.textbox_1 = CTkTextbox(self.textboxes_frame, width=300)
+        self.textbox_1.insert("0.0", "CTkTextbox\n\n" + "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.\n\n" * 20)
+        self.textbox_2 = CTkTextbox(self.textboxes_frame, corner_radius=1000, border_width=3, wrap="none")
+        self.textbox_2.insert("0.0", "Max radius - no wrap\n\n" + "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.\n\n" * 20)
 
-        self.label.pack(padx=20, pady=(self.SPACING, 5))
+        self.label_1.pack(padx=20, pady=(self.SPACING, 5))
+        self.label_2.pack(padx=20, pady=(0, 5))
+        self.label_3.pack(padx=20, pady=(0, 5))
         self.entry_1.pack(padx=20, pady=(self.SPACING, 5))
         self.entry_2.pack(padx=20, pady=(0, 5))
-        self.textbox.pack(padx=20, pady=(self.SPACING, 5))
+        self.textboxes_frame.pack(padx=20, pady=(self.SPACING, 5))
+        self.textbox_1.pack(side="left", padx=5)
+        self.textbox_2.pack(side="left", padx=5)
 
         # boolean
         self.boolean_frame: CTkFrame = self.main_tabview.add("Boolean")
         self.radio_var = IntVar(value=0)
         self.radio_button_1 = CTkRadioButton(self.boolean_frame, variable=self.radio_var, value=0, width=130)
-        self.radio_button_2 = CTkRadioButton(self.boolean_frame, variable=self.radio_var, value=1, hover=False, text="No Hover", width=130)
+        self.radio_button_2 = CTkRadioButton(self.boolean_frame, variable=self.radio_var, value=1, text="Fixed settings", hover=False, border_width_checked=8, border_width_unchecked=6, width=130)
         self.radio_button_3 = CTkRadioButton(self.boolean_frame, variable=self.radio_var, value=2, state="disabled", text="Disabled", width=130)
         self.checkbox_var = BooleanVar(value=True)
         self.checkbox_1 = CTkCheckBox(self.boolean_frame, variable=self.checkbox_var, width=130)
-        self.checkbox_2 = CTkCheckBox(self.boolean_frame, hover=False, text="No Hover", width=130)
-        self.checkbox_3 = CTkCheckBox(self.boolean_frame, state="disabled", text="Disabled", width=130)
+        self.checkbox_2 = CTkCheckBox(self.boolean_frame, state="disabled", text="Disabled", width=130)
         self.switch_var = BooleanVar(value=True)
         self.switch_1 = CTkSwitch(self.boolean_frame, variable=self.switch_var, width=130)
-        self.switch_2 = CTkSwitch(self.boolean_frame, hover=False, text="No Hover", width=130)
+        self.switch_2 = CTkSwitch(self.boolean_frame, text="Fixed settings", hover=False, corner_radius=0, button_length=5, border_width=5, thickness=30, width=130)
         self.switch_3 = CTkSwitch(self.boolean_frame, state="disabled", text="Disabled", width=130)
+        self.switch_4 = CTkSwitch(self.boolean_frame, orientation="vertical", text="vertical", corner_radius=5, button_length=2, border_width=0)
 
         self.radio_button_1.pack(padx=20, pady=(self.SPACING, 5))
         self.radio_button_2.pack(padx=20, pady=(0, 5))
         self.radio_button_3.pack(padx=20, pady=(0, 5))
         self.checkbox_1.pack(padx=20, pady=(self.SPACING, 5))
         self.checkbox_2.pack(padx=20, pady=(0, 5))
-        self.checkbox_3.pack(padx=20, pady=(0, 5))
         self.switch_1.pack(padx=20, pady=(self.SPACING, 5))
         self.switch_2.pack(padx=20, pady=(0, 5))
         self.switch_3.pack(padx=20, pady=(0, 5))
+        self.switch_4.pack(padx=20, pady=(0, 5))
 
         # bars
         self.bars_frame: CTkFrame = self.main_tabview.add("Bars")
@@ -256,9 +273,9 @@ class _Showroom(CTk):
 
         self.label_vertical = CTkLabel(self.bars_frame, text="vertical", height=1)
         self.frame_vertical = CTkFrame(self.bars_frame, fg_color="transparent")
-        self.progressbar_3 = CTkProgressBar(self.frame_vertical, orientation="vertical")
-        self.slider_3 = CTkSlider(self.frame_vertical, orientation="vertical")
-        self.scrollbar_2 = CTkScrollbar(self.frame_vertical, orientation="vertical")
+        self.progressbar_3 = CTkProgressBar(self.frame_vertical, orientation="vertical", corner_radius=3, thickness=16)
+        self.slider_3 = CTkSlider(self.frame_vertical, orientation="vertical", corner_radius=2, button_length=4)
+        self.scrollbar_2 = CTkScrollbar(self.frame_vertical, orientation="vertical", corner_radius=2, border_width=0, thickness=8)
         self.scrollbar_2.set(0, 0.3)
 
         self.progressbar_1.start()

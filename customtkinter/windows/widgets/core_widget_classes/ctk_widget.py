@@ -57,6 +57,7 @@ class CTkWidget(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
         # save latest geometry function and kwargs
         class GeometryCallDict(TypedDict):
             function: Callable
+            apply_scaling: bool
             kwargs: dict
         self._last_geometry_manager_call: GeometryCallDict | None = None
 
@@ -194,7 +195,11 @@ class CTkWidget(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
                           height=self._apply_scaling(self._desired_height))
 
         if self._last_geometry_manager_call is not None:
-            self._last_geometry_manager_call["function"](**self._apply_argument_scaling(self._last_geometry_manager_call["kwargs"]))
+            if self._last_geometry_manager_call["apply_scaling"]:
+                kwargs = self._apply_argument_scaling(self._last_geometry_manager_call["kwargs"])
+            else:
+                kwargs = self._last_geometry_manager_call["kwargs"]
+            self._last_geometry_manager_call["function"](**kwargs)
 
     def _set_dimensions(self, width: int | float | None = None, height: int | float | None = None) -> None:
         """ Called when desired dimentions change """
@@ -213,6 +218,7 @@ class CTkWidget(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
              sequence: str | None = None,
              func: Callable[[tkinter.Event], None] | None = None,
              add: str | bool = True) -> None:
+        #"sequence" semantics is reported here: https://tkdocs.com/shipman/event-sequences.html
         if not self._bind_targets:
             raise NotImplementedError
         if not (add == "+" or add is True):
@@ -254,7 +260,7 @@ class CTkWidget(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
             raise NotImplementedError
         return self._focus_target.focus_force()
 
-    def place(self, **kwargs: Any) -> None:
+    def place(self, apply_scaling: bool = True, **kwargs: Any) -> None:
         """
         Place a widget in the parent widget. Use as options:
         in=master - master relative to which the widget is placed
@@ -272,15 +278,17 @@ class CTkWidget(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
         """
         if "width" in kwargs or "height" in kwargs:
             raise ValueError("'width' and 'height' arguments must be passed to the constructor of the widget, not the place method")
-        self._last_geometry_manager_call = {"function": super().place, "kwargs": kwargs}
-        return super().place(**self._apply_argument_scaling(kwargs))
+        self._last_geometry_manager_call = {"function": super().place, "apply_scaling": apply_scaling, "kwargs": kwargs}
+        if apply_scaling:
+            kwargs = self._apply_argument_scaling(kwargs)
+        return super().place(**kwargs)
 
     def place_forget(self) -> None:
         """ Unmap this widget. """
         self._last_geometry_manager_call = None
         return super().place_forget()
 
-    def pack(self, **kwargs: Any) -> None:
+    def pack(self, apply_scaling: bool = True, **kwargs: Any) -> None:
         """
         Pack a widget in the parent widget. Use as options:
         after=widget - pack it after you have packed widget
@@ -296,15 +304,17 @@ class CTkWidget(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
         pady=amount - add padding in y direction
         side=TOP or BOTTOM or LEFT or RIGHT -  where to add this widget.
         """
-        self._last_geometry_manager_call = {"function": super().pack, "kwargs": kwargs}
-        return super().pack(**self._apply_argument_scaling(kwargs))
+        self._last_geometry_manager_call = {"function": super().pack, "apply_scaling": apply_scaling, "kwargs": kwargs}
+        if apply_scaling:
+            kwargs = self._apply_argument_scaling(kwargs)
+        return super().pack(**kwargs)
 
     def pack_forget(self) -> None:
         """ Unmap this widget and do not use it for the packing order. """
         self._last_geometry_manager_call = None
         return super().pack_forget()
 
-    def grid(self, **kwargs: Any) -> None:
+    def grid(self, apply_scaling: bool = True, **kwargs: Any) -> None:
         """
         Position a widget in the parent widget in a grid. Use as options:
         column=number - use cell identified with given column (starting with 0)
@@ -319,8 +329,10 @@ class CTkWidget(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass):
         rowspan=number - this widget will span several rows
         sticky=NSEW - if cell is larger on which sides will this widget stick to the cell boundary
         """
-        self._last_geometry_manager_call = {"function": super().grid, "kwargs": kwargs}
-        return super().grid(**self._apply_argument_scaling(kwargs))
+        self._last_geometry_manager_call = {"function": super().grid, "apply_scaling": apply_scaling, "kwargs": kwargs}
+        if apply_scaling:
+            kwargs = self._apply_argument_scaling(kwargs)
+        return super().grid(**kwargs)
 
     def grid_forget(self) -> None:
         """ Unmap this widget. """

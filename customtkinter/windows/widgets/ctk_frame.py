@@ -5,7 +5,7 @@ from typing import Any
 from typing_extensions import TypedDict, Unpack
 
 from .core_widget_classes import CTkContainer, CTkWidget
-from .core_rendering import CTkCanvas, BackgroundCorners, RoundedRect
+from .core_rendering import CTkCanvas, BorderedRoundedRect, RoundedRect
 from .theme import ColorType, TransparentColorType, ThemeManager
 
 
@@ -64,8 +64,8 @@ class CTkFrame(CTkWidget, CTkContainer):
                                  width=self._apply_scaling(self._desired_width),
                                  height=self._apply_scaling(self._desired_height))
         self._canvas.place(x=0, y=0, relwidth=1, relheight=1)
-        self._background_corners = BackgroundCorners(self._canvas)
-        self._rounded_rect = RoundedRect(self._canvas)
+        self._background_corners = RoundedRect(self._canvas)
+        self._rounded_rect = BorderedRoundedRect(self._canvas)
         self._bind_targets.append(self._canvas)
         self._focus_target = self._canvas
 
@@ -104,13 +104,13 @@ class CTkFrame(CTkWidget, CTkContainer):
             return
 
         if self._background_corner_colors is not None:
-            if (self._background_corners.update(self._current_width,
-                                                self._current_height) or
+            if (self._background_corners.update(0, 0,
+                                                self._current_width, self._current_height,
+                                                0,
+                                                self._current_width / 2, self._current_height / 2) or
                 force_colors_update):
-                self._background_corners.set_colors(self._apply_appearance_mode(self._background_corner_colors[0]),
-                                                    self._apply_appearance_mode(self._background_corner_colors[1]),
-                                                    self._apply_appearance_mode(self._background_corner_colors[2]),
-                                                    self._apply_appearance_mode(self._background_corner_colors[3]))
+                for idx, section in enumerate(("top_left", "top_right", "bottom_right", "bottom_left")):
+                    self._background_corners.set_color(self._apply_appearance_mode(self._background_corner_colors[idx]), section)
         else:
             self._background_corners.delete()
 

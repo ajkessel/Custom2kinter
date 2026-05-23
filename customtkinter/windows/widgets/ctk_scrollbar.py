@@ -6,14 +6,15 @@ from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkContainer, CTkWidget
-from .core_rendering import CTkCanvas, RoundedRect, Slider
+from .core_rendering import CTkCanvas, BorderedRoundedRect, RoundedRect
 from .theme import ColorType, TransparentColorType, ThemeManager
+from .utility import get_width_height_from_orientation
 
 
 class CTkScrollbarArgs(TypedDict, total=False):
     orientation: Literal["horizontal", "vertical"]
     thickness: int
-    lenght: int
+    length: int
     minimum_pixel_length: int
     corner_radius: int
     border_width: int
@@ -47,12 +48,9 @@ class CTkScrollbar(CTkWidget):
                                                                transparency=key in ("border_color", "fg_color", "bg_color"))
 
         # set default dimensions according to orientation
-        if self._theme_info["orientation"] == "vertical":
-            width = self._theme_info["thickness"]
-            height = self._theme_info["lenght"]
-        else:
-            width = self._theme_info["lenght"]
-            height = self._theme_info["thickness"]
+        width, height = get_width_height_from_orientation(self._theme_info["orientation"],
+                                                          self._theme_info["thickness"],
+                                                          self._theme_info["length"])
 
         super().__init__(master=master,
                          bg_color=self._theme_info["bg_color"],
@@ -71,8 +69,8 @@ class CTkScrollbar(CTkWidget):
                                  width=self._apply_scaling(self._desired_width),
                                  height=self._apply_scaling(self._desired_height))
         self._canvas.place(x=0, y=0, relwidth=1, relheight=1)
-        self._rounded_rect = RoundedRect(self._canvas)
-        self._slider = Slider(self._canvas)
+        self._rounded_rect = BorderedRoundedRect(self._canvas)
+        self._slider = RoundedRect(self._canvas)
         self._bind_targets.append(self._canvas)
         self._focus_target = self._canvas
 
@@ -137,20 +135,27 @@ class CTkScrollbar(CTkWidget):
     def _draw(self, force_colors_update: bool = False) -> None:
         super()._draw(force_colors_update)
 
+        requires_recoloring_1 = self._rounded_rect.update(self._current_width,
+                                                          self._current_height,
+                                                          self._apply_scaling(self._theme_info["corner_radius"]),
+                                                          self._apply_scaling(self._theme_info["border_width"]))
+
+        info = self._rounded_rect.info.get
+        x_start = y_start = info("border_width", 0)
+        width = info("inner_width", 0)
+        height = info("inner_height", 0)
         corrected_start_value, corrected_end_value = self._get_scrollbar_values_for_minimum_pixel_size()
 
-        common_args = (self._current_width,
-                       self._current_height,
-                       self._apply_scaling(self._theme_info["corner_radius"]),
-                       self._apply_scaling(self._theme_info["border_width"]))
+        if self._theme_info["orientation"] == "horizontal":
+            x_start += width * corrected_start_value
+            width *= (corrected_end_value - corrected_start_value)
+        else:
+            y_start += height * corrected_start_value
+            height *= (corrected_end_value - corrected_start_value)
 
-        requires_recoloring_1 = self._rounded_rect.update(*common_args)
-
-        requires_recoloring_2 = self._slider.update(*common_args,
-                                                    common_args[2],
-                                                    self._theme_info["orientation"],
-                                                    start_value=corrected_start_value,
-                                                    end_value=corrected_end_value)
+        requires_recoloring_2 = self._slider.update(x_start, y_start,
+                                                    width, height,
+                                                    info("inner_corner_radius", 0))
 
         if force_colors_update or requires_recoloring_1 or requires_recoloring_2:
             self._rounded_rect.raise_()
@@ -168,6 +173,18 @@ class CTkScrollbar(CTkWidget):
         self._canvas.update_idletasks()
 
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkScrollbarArgs]) -> None:
+        if "thickness" in kwargs:
+            self._theme_info["thickness"] = kwargs.pop("thickness")
+            kwargs["width" if self._theme_info["orientation"] == "vertical" else "height"] = self._theme_info["thickness"]
+
+        if "length" in kwargs:
+            self._theme_info["length"] = kwargs.pop("length")
+            kwargs["height" if self._theme_info["orientation"] == "vertical" else "width"] = self._theme_info["length"]
+
+        if "minimum_pixel_length" in kwargs:
+            self._theme_info["minimum_pixel_length"] = kwargs.pop("minimum_pixel_length")
+            require_redraw = True
+
         if "corner_radius" in kwargs:
             self._theme_info["corner_radius"] = kwargs.pop("corner_radius")
             require_redraw = True
@@ -222,11 +239,11 @@ class CTkScrollbar(CTkWidget):
         self._on_motion(event)
 
     def _get_value_from_event(self, event: tkinter.Event) -> float:
-        border_width = self._apply_scaling(float(self._theme_info["border_width"]))
+        spacing = self._rounded_rect.info.get("flat_spacing", 0)
         if self._theme_info["orientation"] == "vertical":
-            value = (event.y - border_width) / (self._current_height - 2 * border_width)
+            value = (event.y - spacing) / (self._current_height - 2 * spacing)
         else:
-            value = (event.x - border_width) / (self._current_width - 2 * border_width)
+            value = (event.x - spacing) / (self._current_width - 2 * spacing)
         return value
 
     def _clicked_scrollbar(self, event: tkinter.Event) -> None:
