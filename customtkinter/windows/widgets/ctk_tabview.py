@@ -84,7 +84,7 @@ class CTkTabview(CTkWidget, CTkContainer):
         self._segmented_button = CTkSegmentedButton(self,
                                                     values=[],
                                                     command=self._segmented_button_callback,
-                                                    state=kwargs.pop("state", "normal"),
+                                                    state=kwargs.pop("state", tkinter.NORMAL),
                                                     **self._theme_info["segmented_button"])
 
         # check for unknown arguments

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tkinter
 import copy
+from threading import Lock
 from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
@@ -67,11 +68,11 @@ class CTkOptionMenu(CTkWidget):
         self._font.add_size_configure_callback(self._update_font)
 
         # functionality
-        self._state: Literal["normal", "disabled"] = kwargs.pop("state", "normal")
+        self._state: Literal["normal", "disabled"] = kwargs.pop("state", tkinter.NORMAL)
         self._command: Callable[[str], None] | None = kwargs.pop("command", None)
         self._variable: tkinter.StringVar | None = kwargs.pop("variable", None)
-        self._variable_callback_blocked: bool = False
         self._variable_callback_name: str | None = None
+        self._block_value_propagation: Lock = Lock()
         self._applied_button_width: int = -1
         self._values: list[str] = kwargs.pop("values", [])
         self._current_value: str = "" if len(self._values) == 0 else self._values[0]
@@ -326,23 +327,23 @@ class CTkOptionMenu(CTkWidget):
                                           self._theme_info["compound"])
 
     def _variable_callback(self, *_: str) -> None:
-        if not self._variable_callback_blocked:
-            self.set(self._variable.get(), from_variable_callback=True)
+        if not self._block_value_propagation.locked():
+            with self._block_value_propagation:
+                self.set(self._variable.get())
 
     def _dropdown_callback(self, value: str) -> None:
         self.set(value)
         if self._command is not None:
             self._command(self._current_value)
 
-    def set(self, value: str, from_variable_callback: bool = False) -> None:
+    def set(self, value: str) -> None:
         """ Changes the content to the desired value, regardless of the widget's state and admissible values. """
         self._current_value = value
         self._text_label.configure(text=self._current_value)
 
-        if self._variable is not None and not from_variable_callback:
-            self._variable_callback_blocked = True
-            self._variable.set(self._current_value)
-            self._variable_callback_blocked = False
+        if self._variable is not None and not self._block_value_propagation.locked():
+            with self._block_value_propagation:
+                self._variable.set(self._current_value)
 
     def get(self, index: int | None = None) -> str:
         """ Returns the current selected value.\n

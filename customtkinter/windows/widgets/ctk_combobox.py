@@ -27,6 +27,8 @@ class CTkComboBoxThemedArgs(TypedDict, total=False):
     button_hover_color: ColorType
     text_color: ColorType
     text_color_disabled: ColorType
+    placeholder_text_color: ColorType
+    placeholder_text: str  #not used in "type" mode or if a variable is provided
     hover: bool
     font: FontType
     justify: Literal["left", "center", "right"]
@@ -34,8 +36,10 @@ class CTkComboBoxThemedArgs(TypedDict, total=False):
     dropdown: DropdownMenuArgs
 
 class CTkComboBoxArgs(CTkComboBoxThemedArgs, ValidTkEntryArgs, total=False):
-    state: Literal["normal", "disabled", "readonly"] = "normal"
+    mode: Literal["replace", "toggle", "type", "command"]
+    state: Literal["normal", "disabled", "readonly"]
     values: list[str]
+    separator: str  #used only in "toggle" mode
     variable: tkinter.StringVar | None
     command: Callable[[str], None] | None
 
@@ -43,6 +47,11 @@ class CTkComboBoxArgs(CTkComboBoxThemedArgs, ValidTkEntryArgs, total=False):
 class CTkComboBox(CTkWidget, EntryLike):
     """
     Combobox with dropdown menu, rounded corners, border, variable support.
+    It behaves differently based on the mode:
+    - "replace": content is replaced when a value is selected from the Dropdown Menu;
+    - "toggle": selected value is added if missing or removed if already present;
+    - "type": values in the Dropdown menu are used as placeholder_text to indicate a different usage of the content;
+    - "command": just the command function is invoked.
     For detailed information check out the documentation.
     """
 
@@ -71,12 +80,17 @@ class CTkComboBox(CTkWidget, EntryLike):
         self._font.add_size_configure_callback(self._update_font)
 
         # functionality
-        self._state: Literal["normal", "disabled", "readonly"] = kwargs.pop("state", "normal")
+        self._mode: Literal["replace", "toggle", "type", "command"] = kwargs.pop("mode", "replace")
+        self._state: Literal["normal", "disabled", "readonly"] = kwargs.pop("state", tkinter.NORMAL)
         self._values: list[str] = kwargs.pop("values", [])
+        self._separator: str = kwargs.pop("separator", " ")
+        self._type: str = self._values[0] if self._mode == "type" and self._values else ""
         self._command: Callable[[str], None] | None = kwargs.pop("command", None)
         self._variable: tkinter.StringVar | None = kwargs.pop("variable", None)
         self._applied_button_width: int = -1
         self._close_on_next_click: bool = False
+        self._placeholder_text_active: bool = False
+        self._has_focus: bool = False
 
         # configure grid system (1x1)
         self.grid_rowconfigure(0, weight=1)
@@ -107,18 +121,19 @@ class CTkComboBox(CTkWidget, EntryLike):
         self._bind_targets.append(self._entry)
         self._focus_target = self._entry
 
+        if self._variable is not None:
+            self._entry.configure(textvariable=self._variable)
+        elif self._mode == "replace" and self._theme_info["placeholder_text"] == "":
+            # insert default value
+            if len(self._values) > 0:
+                self._set_regardless(self._values[0])
+
         # check for unknown arguments
         check_kwargs_empty(kwargs, raise_error=True)
 
+        self._activate_placeholder()
         self._create_bindings()
         self._draw(force_colors_update=True)
-
-        if self._variable is not None:
-            self._entry.configure(textvariable=self._variable)
-        else:
-            # insert default value
-            if len(self._values) > 0:
-                self._entry.insert(0, self._values[0])
 
     def _create_bindings(self, sequence: str | None = None) -> None:
         """ set necessary bindings for functionality of widget, will overwrite other bindings """
@@ -128,6 +143,10 @@ class CTkComboBox(CTkWidget, EntryLike):
             self._rounded_rect.bind("<Leave>", self._on_leave, section=self._theme_info["compound"])
         if sequence is None or sequence == "<Button-1>":
             self._rounded_rect.bind("<Button-1>", self.invoke, section=self._theme_info["compound"])
+        if sequence is None or sequence == "<FocusIn>":
+            self._entry.bind("<FocusIn>", self._on_focus_in)
+        if sequence is None or sequence == "<FocusOut>":
+            self._entry.bind("<FocusOut>", self._on_focus_out)
 
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
@@ -201,6 +220,9 @@ class CTkComboBox(CTkWidget, EntryLike):
             self._rounded_rect.set_border_color(button_color, compound)
             self._arrow.set_color(text_color_disabled if self._state == tkinter.DISABLED else text_color)
 
+            if self._placeholder_text_active:
+                text_color = self._apply_appearance_mode(self._theme_info["placeholder_text_color"])
+
             self._entry.configure(bg=fg_color,
                                   fg=text_color,
                                   readonlybackground=fg_color,
@@ -259,30 +281,23 @@ class CTkComboBox(CTkWidget, EntryLike):
             self._theme_info["text_color_disabled"] = self._check_color_type(kwargs.pop("text_color_disabled"))
             require_redraw = True
 
+        if "placeholder_text_color" in kwargs:
+            self._theme_info["placeholder_text_color"] = self._check_color_type(kwargs.pop("placeholder_text_color"))
+            require_redraw = True
+
+        if "placeholder_text" in kwargs:
+            self._theme_info["placeholder_text"] = kwargs.pop("placeholder_text")
+            if self._mode != "type" and self._placeholder_text_active:
+                self._set_regardless(self._theme_info["placeholder_text"])
+
+        if "hover" in kwargs:
+            self._theme_info["hover"] = kwargs.pop("hover")
+
         if "font" in kwargs:
             self._font.remove_size_configure_callback(self._update_font)
             self._font = CTkFont.from_parameter(kwargs.pop("font"))
             self._font.add_size_configure_callback(self._update_font)
             self._update_font()
-
-        if "values" in kwargs:
-            self._values = kwargs.pop("values")
-            self._dropdown_menu.configure(values=self._values)
-
-        if "state" in kwargs:
-            self._state = kwargs.pop("state")
-            self._entry.configure(state=self._state)
-            require_redraw = True
-
-        if "hover" in kwargs:
-            self._theme_info["hover"] = kwargs.pop("hover")
-
-        if "variable" in kwargs:
-            self._variable = kwargs.pop("variable")
-            self._entry.configure(textvariable=self._variable)
-
-        if "command" in kwargs:
-            self._command = kwargs.pop("command")
 
         if "justify" in kwargs:
             self._theme_info["justify"] = kwargs.pop("justify")
@@ -294,6 +309,40 @@ class CTkComboBox(CTkWidget, EntryLike):
             self._applied_button_width = -1
             require_redraw = True
 
+        if "values" in kwargs:
+            self._values = kwargs.pop("values")
+            self._dropdown_menu.configure(values=self._values)
+
+        if "separator" in kwargs:
+            string = self.get()
+            values = string.split(self._separator) if string else []
+            self._separator = kwargs.pop("separator")
+            if self._mode == "toggle":
+                self.set(self._separator.join(values))
+
+        if "mode" in kwargs:
+            self._mode = kwargs.pop("mode")
+            if self._mode == "type" and self._values:
+                self._type = self._values[0]
+                if self._placeholder_text_active:
+                    self._set_regardless(self._type)
+            else:
+                self._type = ""
+
+        if "state" in kwargs:
+            self._state = kwargs.pop("state")
+            self._entry.configure(state=self._state)
+            require_redraw = True
+
+        if "variable" in kwargs:
+            self._variable = kwargs.pop("variable")
+            self._entry.configure(textvariable=self._variable)
+            self._deactivate_placeholder()
+            self._activate_placeholder()
+
+        if "command" in kwargs:
+            self._command = kwargs.pop("command")
+
         if "dropdown" in kwargs:
             self._dropdown_menu.configure(**kwargs.pop("dropdown"))
 
@@ -303,10 +352,14 @@ class CTkComboBox(CTkWidget, EntryLike):
     def cget(self, attribute_name: str) -> Any:
         if attribute_name == "font":
             return self._font
+        elif attribute_name == "mode":
+            return self._mode
         elif attribute_name == "state":
             return self._state
         elif attribute_name == "values":
             return copy.copy(self._values)
+        elif attribute_name == "separator":
+            return self._separator
         elif attribute_name == "variable":
             return self._variable
         elif attribute_name == "command":
@@ -319,6 +372,31 @@ class CTkComboBox(CTkWidget, EntryLike):
             self._dropdown_menu.cget(attribute_name.removeprefix("dropdown_"))
         else:
             return super().cget(attribute_name)
+
+    def _activate_placeholder(self) -> None:
+        if self._entry.get() == "" and self._variable is None and not self._has_focus:
+            self._placeholder_text_active = True
+
+            text_color = self._apply_appearance_mode(self._theme_info["placeholder_text_color"])
+            self._entry.configure(fg=text_color, disabledforeground=text_color)
+            self._set_regardless(self._type if self._mode == "type" else self._theme_info["placeholder_text"])
+
+    def _deactivate_placeholder(self) -> None:
+        if self._placeholder_text_active:
+            self._placeholder_text_active = False
+
+            self._entry.configure(fg=self._apply_appearance_mode(self._theme_info["text_color"]),
+                                  disabledforeground=self._apply_appearance_mode(self._theme_info["text_color_disabled"]))
+            self._set_regardless("")
+
+    def _on_focus_in(self, _: tkinter.Event | None = None) -> None:
+        if self._state == tkinter.NORMAL:
+            self._has_focus = True
+            self._deactivate_placeholder()
+
+    def _on_focus_out(self, _: tkinter.Event | None = None) -> None:
+        self._has_focus = False
+        self._activate_placeholder()
 
     def _on_enter(self, _: tkinter.Event | None = None) -> None:
         self._close_on_next_click = self._dropdown_menu.is_open()
@@ -344,28 +422,72 @@ class CTkComboBox(CTkWidget, EntryLike):
         self._rounded_rect.set_border_color(color, self._theme_info["compound"])
 
     def _dropdown_callback(self, value: str) -> None:
-        self.set(value)
+        if self._mode == "replace":
+            self.set(value)
+
+        elif self._mode == "toggle":
+            string = self.get()
+            values = string.split(self._separator) if string else []
+            try:
+                values.remove(value)
+            except ValueError:
+                values.append(value)
+            self.set(self._separator.join(values))
+
+        elif self._mode == "type":
+            self._type = value
+            if self._placeholder_text_active:
+                self._set_regardless(value)
+
+        #in command mode, just invoke the function
         if self._command is not None:
             self._command(value)
 
+        #in toggle mode, re-open the menu to allow the user
+        # to click multiple values consecutively
+        if self._mode == "toggle":
+            self._close_on_next_click = False
+            self.invoke()
+
+    def delete(self, first_index: str | int, last_index: str | int | None = None) -> None:
+        self._entry.delete(first_index, last_index)
+        self._activate_placeholder()
+
+    def insert(self, index: str | int, string: str) -> None:
+        self._deactivate_placeholder()
+        return self._entry.insert(index, string)
+
     def set(self, value: str) -> None:
         """ Changes the content to the desired value, regardless of the widget's state and admissible values. """
-        if self._state == tkinter.NORMAL:
-            self._entry.delete(0, tkinter.END)
-            self._entry.insert(0, value)
-        else:
-            self._entry.configure(state=tkinter.NORMAL)
-            self._entry.delete(0, tkinter.END)
-            self._entry.insert(0, value)
-            self._entry.configure(state=self._state)
+        self._deactivate_placeholder()
+        self._set_regardless(value)
+        if value == "":
+            self._activate_placeholder()
 
     def get(self, index: int | None = None) -> str:
         """ Returns the current value.\n
         If an index is provided, returns the value in that position. """
-        if index is None:
-            return self._entry.get()
-        else:
+        if index is not None:
             return self._values[index]
+        elif self._placeholder_text_active:
+            return ""
+        else:
+            return self._entry.get()
+
+    def set_type(self, value: str) -> None:
+        """ For 'type' mode, changes the active type to the desired value,
+        regardless of the widget's state and admissible values. """
+        if self._mode == "type":
+            self._type = value
+            if self._placeholder_text_active:
+                self._set_regardless(value)
+
+    def get_type(self) -> str:
+        """ For 'type' mode, returns the current type. """
+        if self._mode == "type":
+            return self._type
+        else:
+            return ""
 
     def index(self, value: str | None = None) -> int:
         """ Returns index of selected value, raises ValueError if the value is missing.\n

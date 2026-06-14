@@ -58,7 +58,8 @@ class CTk(tkinter.Tk, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTkContai
     For detailed information check out the documentation.
     """
 
-    deactivate_header_manipulation: bool = False  #applies to Windows only
+    deactivate_windows_header_manipulation: bool = False
+    deactivate_macos_header_manipulation: bool = False
 
     def __init__(self, **kwargs: Unpack[CTkArgs]) -> None:
 
@@ -221,19 +222,25 @@ class CTk(tkinter.Tk, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTkContai
             self._desired_height = min(self._desired_width, height)
         super().maxsize(self._apply_scaling(self._max_width), self._apply_scaling(self._max_height))
 
-    def geometry(self, geometry_string: str | None = None) -> str | None:
+    def geometry(self, geometry_string: str | None = None, apply_scaling: bool = True) -> str | None:
         if geometry_string is not None:
-            super().geometry(self._apply_geometry_scaling(geometry_string))
+            if apply_scaling:
+                width, height, _, _ = parse_geometry_string(geometry_string)
+                geometry_string = self._apply_geometry_scaling(geometry_string)
+            else:
+                width, height, _, _ = parse_geometry_string(self._reverse_geometry_scaling(geometry_string))
+            super().geometry(geometry_string)
 
-            # update width and height attributes
-            width, height, _, _ = parse_geometry_string(geometry_string)
             if width is not None and height is not None:
                 # bound values between min and max
                 self._desired_width = max(self._min_width, min(width, self._max_width))
                 self._desired_height = max(self._min_height, min(height, self._max_height))
             return None
         else:
-            return self._reverse_geometry_scaling(super().geometry())
+            geometry_string = super().geometry()
+            if apply_scaling:
+                geometry_string = self._reverse_geometry_scaling(geometry_string)
+            return geometry_string
 
     def configure(self, **kwargs: Unpack[CTkArgs]) -> None:
         if "fg_color" in kwargs:
@@ -274,7 +281,7 @@ class CTk(tkinter.Tk, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTkContai
 
     @classmethod
     def _enable_macos_dark_title_bar(cls) -> None:
-        if sys.platform == "darwin" and not cls._deactivate_macos_window_header_manipulation:  # macOS
+        if sys.platform == "darwin" and not cls.deactivate_macos_header_manipulation:  # macOS
             if version.parse(platform.python_version()) < version.parse("3.10"):
                 if version.parse(tkinter.Tcl().call("info", "patchlevel")) >= version.parse("8.6.9"):  # Tcl/Tk >= 8.6.9
                     os.system("defaults write -g NSRequiresAquaSystemAppearance -bool No")
@@ -282,7 +289,7 @@ class CTk(tkinter.Tk, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTkContai
 
     @classmethod
     def _disable_macos_dark_title_bar(cls) -> None:
-        if sys.platform == "darwin" and not cls._deactivate_macos_window_header_manipulation:  # macOS
+        if sys.platform == "darwin" and not cls.deactivate_macos_header_manipulation:  # macOS
             if version.parse(platform.python_version()) < version.parse("3.10"):
                 if version.parse(tkinter.Tcl().call("info", "patchlevel")) >= version.parse("8.6.9"):  # Tcl/Tk >= 8.6.9
                     os.system("defaults delete -g NSRequiresAquaSystemAppearance")
@@ -299,7 +306,7 @@ class CTk(tkinter.Tk, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTkContai
         https://docs.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute
         """
 
-        if sys.platform.startswith("win") and not self.deactivate_header_manipulation:
+        if sys.platform.startswith("win") and not self.deactivate_windows_header_manipulation:
 
             if self._window_exists:
                 self._state_before_windows_set_titlebar_color = self.state()

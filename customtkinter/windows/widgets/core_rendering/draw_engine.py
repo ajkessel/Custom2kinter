@@ -155,7 +155,7 @@ class RoundedRect(BaseShape):
         y_center_b = y_end - corner_radius
         x_mid = x_start + left_section_width
         y_mid = y_start + top_section_height
-        state = "disabled" if self.events_transparent else "normal"
+        state = tkinter.DISABLED if self.events_transparent else tkinter.NORMAL
 
         #update info
         self.info["y_start"] = y_start
@@ -522,7 +522,7 @@ class Arrow(BaseShape):
         x_position = round(x_position)
         y_position = round(y_position)
         size = round(size)
-        state = "disabled" if self.events_transparent else "normal"
+        state = tkinter.DISABLED if self.events_transparent else tkinter.NORMAL
         requires_recoloring = False
 
         if self.drawing_method == "font":
@@ -580,7 +580,7 @@ class Bar(BaseShape):
         x_position = round(x_position)
         y_position = round(y_position)
         size = round(size)
-        state = "disabled" if self.events_transparent else "normal"
+        state = tkinter.DISABLED if self.events_transparent else tkinter.NORMAL
         requires_recoloring = False
 
         if self.drawing_method == "font":
@@ -634,7 +634,7 @@ class Checkmark(BaseShape):
         x_position = round(x_position)
         y_position = round(y_position)
         size = round(size)
-        state = "disabled" if self.events_transparent else "normal"
+        state = tkinter.DISABLED if self.events_transparent else tkinter.NORMAL
         requires_recoloring = False
 
         if self.drawing_method == "font":

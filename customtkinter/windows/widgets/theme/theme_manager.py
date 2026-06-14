@@ -51,7 +51,9 @@ class ThemeInfo(TypedDict, total=False):
     text_color: ColorType
     text_color_disabled: ColorType
     placeholder_text_color: ColorType
+    transparency: float
     hover: bool
+    show_value: bool
     activate_scrollbars: bool
     placeholder_text: str
     title: str
@@ -70,15 +72,19 @@ class ThemeInfo(TypedDict, total=False):
     justify: Literal["left", "center", "right"]
     compound: Literal["center", "left", "right", "top", "bottom", "none"]
     wraplength: int
+    delay: int
     minimum_pixel_length: int
     min_character_width: int
+    x_offset: int
+    y_offset: int
     button: dict
+    combobox: dict
     dropdown: dict
     entry: dict
-    combobox: dict
     label: dict
     scrollbar: dict
     segmented_button: dict
+    tooltip: dict
 
 
 class ThemeManager:

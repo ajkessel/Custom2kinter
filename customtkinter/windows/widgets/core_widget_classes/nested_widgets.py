@@ -10,6 +10,17 @@ class EntryLike(ABC):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._entry = tkinter.Entry(*args, **kwargs)
 
+    def _set_regardless(self, text: str) -> None:
+        state = self._entry.cget("state")
+        if state != tkinter.NORMAL:
+            self._entry.configure(state=tkinter.NORMAL)
+
+        self._entry.delete(0, tkinter.END)
+        self._entry.insert(0, text)
+
+        if state != tkinter.NORMAL:
+            self._entry.configure(state=state)
+
     def cursor_index(self, index: str | int) -> int:
         #different name to avoid clashing with other methods
         return self._entry.index(index)

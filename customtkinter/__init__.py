@@ -31,6 +31,7 @@ from .windows.widgets import CTkButton
 from .windows.widgets import CTkCheckBox
 from .windows.widgets import CTkComboBox
 from .windows.widgets import CTkEntry
+from .windows.widgets import CTkFloatingFrame
 from .windows.widgets import CTkFrame
 from .windows.widgets import CTkLabel
 from .windows.widgets import CTkOptionMenu
@@ -39,9 +40,11 @@ from .windows.widgets import CTkRadioButton
 from .windows.widgets import CTkScrollbar
 from .windows.widgets import CTkSegmentedButton
 from .windows.widgets import CTkSlider
+from .windows.widgets import CTkSpinBox
 from .windows.widgets import CTkSwitch
 from .windows.widgets import CTkTabview
 from .windows.widgets import CTkTextbox
+from .windows.widgets import CTkToolTip
 from .windows.widgets import CTkScrollableFrame
 
 # import windows
@@ -125,6 +128,7 @@ class _Showroom(CTk):
 
         # configure window
         self.title("CustomTkinter Showroom")
+        self.geometry("+200+50")
 
         self.new_instance_requested: bool = False
 
@@ -141,13 +145,17 @@ class _Showroom(CTk):
         self.theme_optionmenu.set(ThemeManager._last_loaded_theme)
         self.appearance_mode_label = CTkLabel(self.sidebar_frame, text="Appearance Mode:", anchor="w")
         self.appearance_mode_optionemenu = CTkOptionMenu(self.sidebar_frame, values=["light", "dark", "system"],
-                                                         command=self._change_appearance_mode)
+                                                         command=set_appearance_mode)
         self.appearance_mode_optionemenu.set(get_appearance_mode())
         self.scaling_label = CTkLabel(self.sidebar_frame, text="UI Scaling:", anchor="w")
-        self.scaling_optionmenu = CTkOptionMenu(self.sidebar_frame, values=["80%", "90%", "100%", "110%", "120%"],
-                                                command=self._change_scaling)
-        widget_scaling = round(ScalingTracker._widget_scaling*100)
-        self.scaling_optionmenu.set(f"{widget_scaling}%")
+        self.scaling_spinbox = CTkSpinBox(self.sidebar_frame, from_=0.5, to=2.0, buttonincrement=0.1, format="{:.0%}",
+                                          command=set_widget_scaling,
+                                          border_width=0,
+                                          fg_color=self.theme_optionmenu.cget("fg_color"),
+                                          button_color=self.theme_optionmenu.cget("button_color"),
+                                          button_hover_color=self.theme_optionmenu.cget("button_hover_color"),
+                                          text_color=self.theme_optionmenu.cget("text_color"))
+        self.scaling_spinbox.set(ScalingTracker._widget_scaling)
         self.drawing_label = CTkLabel(self.sidebar_frame, text="Drawing method:", anchor="w")
         self.drawing_optionmenu = CTkOptionMenu(self.sidebar_frame, values=DRAWING_METHODS,
                                                 command=self._change_drawing)
@@ -167,7 +175,7 @@ class _Showroom(CTk):
         self.appearance_mode_label.pack(side=TOP, fill=X, padx=20, pady=(20, 5))
         self.appearance_mode_optionemenu.pack(side=TOP, fill=X, padx=20, pady=(0, 10))
         self.scaling_label.pack(side=TOP, fill=X, padx=20, pady=(20, 5))
-        self.scaling_optionmenu.pack(side=TOP, fill=X, padx=20, pady=(0, 10))
+        self.scaling_spinbox.pack(side=TOP, fill=X, padx=20, pady=(0, 10))
         self.drawing_label.pack(side=TOP, fill=X, padx=20, pady=(20, 5))
         self.drawing_optionmenu.pack(side=TOP, fill=X, padx=20, pady=(0, 10))
 
@@ -197,30 +205,59 @@ class _Showroom(CTk):
 
         # choices
         self.choices_frame: CTkFrame = self.main_tabview.add("Choices")
-        self.combobox_1 = CTkComboBox(self.choices_frame,
+        self.topchoices_frame = CTkFrame(self.choices_frame, fg_color="transparent")
+        self.combo_frame = CTkFrame(self.topchoices_frame, fg_color="transparent")
+        self.combobox_1 = CTkComboBox(self.combo_frame, placeholder_text="Placeholder text",
                                       values=["CTkComboBox", "Value 2", "Value 3", "User can also", "write any text"])
         self.combobox_1.set("CTkComboBox")
-        self.combobox_2 = CTkComboBox(self.choices_frame, state="readonly",
+        self.combobox_2 = CTkComboBox(self.combo_frame, state="readonly",
                                       values=["readonly", "Value 2", "Value 3", "User can only", "choose a value"])
         self.combobox_2.set("readonly")
-        self.combobox_3 = CTkComboBox(self.choices_frame, state="disabled", values=["disabled"], corner_radius=1000)
+        self.combobox_3 = CTkComboBox(self.combo_frame, state="disabled", values=["disabled"], corner_radius=1000)
         self.combobox_3.set("disabled")
-        self.optionmenu1 = CTkOptionMenu(self.choices_frame, values=["CTkOptionMenu", "Value 2", "Value 3"])
-        self.optionmenu2 = CTkOptionMenu(self.choices_frame, values=["disabled", "Value 2", "Value 3"], state="disabled", corner_radius=1000)
-        self.optionmenu3 = CTkOptionMenu(self.choices_frame, values=["compound left", "anchor e", "Value 3"], compound="left", anchor="e")
-        self.seg_button1 = CTkSegmentedButton(self.choices_frame, values=["CTkSegmentedButton", "Value 2", "Value 3"])
-        self.seg_button1.set("CTkSegmentedButton")
-        self.seg_button2 = CTkSegmentedButton(self.choices_frame, values=["vertical", "Max radius", "Value 3"], orientation="vertical", corner_radius=1000, height=35)
-        self.seg_button2.set("vertical")
+        self.combobox_4 = CTkComboBox(self.combo_frame, mode="toggle", separator=", ", width=200,
+                                      values=["toggle mode", "Values", "are added", "(if missing)", "or removed", "(if present)", "when selected"])
+        self.combobox_4.set("toggle mode")
+        self.combobox_5 = CTkComboBox(self.combo_frame, mode="type", width=200,
+                                      values=["type mode", "Values", "are used", "as placeholders", "to indicate", "a different usage"])
+        self.combobox_6 = CTkComboBox(self.combo_frame, mode="command", command=self._combo_command, width=200,
+                                      values=["command mode", "only command is invoked", "UPPERCASE", "lowercase", "Title Case", "Strip whitespaces"])
+        self.combobox_6.set("  command mode  ")
 
+        self.optionspin_frame = CTkFrame(self.topchoices_frame, fg_color="transparent")
+        self.optionmenu_1 = CTkOptionMenu(self.optionspin_frame, values=["CTkOptionMenu", "Value 2", "Value 3"])
+        self.optionmenu_2 = CTkOptionMenu(self.optionspin_frame, values=["disabled", "Value 2", "Value 3"], state="disabled", corner_radius=1000)
+        self.optionmenu_3 = CTkOptionMenu(self.optionspin_frame, values=["compound left", "anchor e", "Value 3"], compound="left", anchor="e")
+        self.spinbox_1 = CTkSpinBox(self.optionspin_frame, width=120,
+                                    values=["CTkSpinBox", "with values", "which are", "shown one", "at a time"])
+        self.spinbox_1.set("CTkSpinBox")
+        self.spinbox_2 = CTkSpinBox(self.optionspin_frame, from_=1.0, to=60.0, buttonincrement=0.2, scrollincrement=1.0, format="{:.2f} s", justify="center", corner_radius=1000)
+        self.spinbox_2.set("From-To")
+        self.spinbox_3 = CTkSpinBox(self.optionspin_frame, from_=0x0, to=0xFFFF, buttonincrement=0x1, scrollincrement=0x100, format="0x{:04X}", compound="left")
+        self.spinbox_3.set(0x0000)
+
+        self.seg_button_1 = CTkSegmentedButton(self.choices_frame, values=["CTkSegmentedButton", "Value 2", "Value 3"])
+        self.seg_button_1.set("CTkSegmentedButton")
+        self.seg_button_2 = CTkSegmentedButton(self.choices_frame, values=["vertical", "Max radius", "Value 3"], orientation="vertical", corner_radius=1000, height=35)
+        self.seg_button_2.set("vertical")
+
+        self.topchoices_frame.pack()
+        self.combo_frame.pack(side="left")
+        self.optionspin_frame.pack(side="left")
         self.combobox_1.pack(padx=20, pady=(self.SPACING, 5))
         self.combobox_2.pack(padx=20, pady=(0, 5))
         self.combobox_3.pack(padx=20, pady=(0, 5))
-        self.optionmenu1.pack(padx=20, pady=(self.SPACING, 5))
-        self.optionmenu2.pack(padx=20, pady=(0, 5))
-        self.optionmenu3.pack(padx=20, pady=(0, 5))
-        self.seg_button1.pack(padx=20, pady=(self.SPACING, 5))
-        self.seg_button2.pack(padx=20, pady=(0, 5))
+        self.combobox_4.pack(padx=20, pady=(0, 5))
+        self.combobox_5.pack(padx=20, pady=(0, 5))
+        self.combobox_6.pack(padx=20, pady=(0, 5))
+        self.optionmenu_1.pack(padx=20, pady=(self.SPACING, 5))
+        self.optionmenu_2.pack(padx=20, pady=(0, 5))
+        self.optionmenu_3.pack(padx=20, pady=(0, 5))
+        self.spinbox_1.pack(padx=20, pady=(self.SPACING, 5))
+        self.spinbox_2.pack(padx=20, pady=(0, 5))
+        self.spinbox_3.pack(padx=20, pady=(0, 5))
+        self.seg_button_1.pack(padx=20, pady=(self.SPACING, 5))
+        self.seg_button_2.pack(padx=20, pady=(0, 5))
 
         # text
         self.text_frame: CTkFrame = self.main_tabview.add("Text")
@@ -276,32 +313,40 @@ class _Showroom(CTk):
 
         # bars
         self.bars_frame: CTkFrame = self.main_tabview.add("Bars")
+        self.bar_var = DoubleVar(value=0.5)
         self.label_progbar_1 = CTkLabel(self.bars_frame, text="CTkProgressBar - determinate", height=1)
         self.progressbar_1 = CTkProgressBar(self.bars_frame, mode="determinate")
         self.label_progbar_2 = CTkLabel(self.bars_frame, text="CTkProgressBar - indeterminate", height=1)
         self.progressbar_2 = CTkProgressBar(self.bars_frame, mode="indeterminate", progress_speed=0.25)
-        self.label_progbar_3 = CTkLabel(self.bars_frame, text="CTkProgressBar - single_run (click me)", height=1)
-        self.progressbar_3 = CTkProgressBar(self.bars_frame, mode="single_run")
+        self.label_progbar_3 = CTkLabel(self.bars_frame, text="CTkProgressBar - single_run", height=1)
+        self.progressbar_3 = CTkProgressBar(self.bars_frame, mode="single_run", show_value=True, thickness=20)
         self.label_slider_1 = CTkLabel(self.bars_frame, text="CTkSlider - with steps", height=1)
-        self.slider_1 = CTkSlider(self.bars_frame, from_=0, to=1, number_of_steps=4)
+        self.slider_1 = CTkSlider(self.bars_frame, number_of_steps=4)
+        self.slider_2 = CTkSlider(self.bars_frame, mode="in_range", number_of_steps=9, from_=1, to=10, format="{:.0f} seconds")
         self.label_slider_2 = CTkLabel(self.bars_frame, text="CTkSlider - continuous", height=1)
-        self.slider_2 = CTkSlider(self.bars_frame, from_=10, to=100)
+        self.slider_3 = CTkSlider(self.bars_frame, from_=10, to=100)
+        self.slider_4 = CTkSlider(self.bars_frame, mode="out_range", from_=100, to=-100, corner_radius=0, button_length=4, border_width=4)
         self.label_scrollbar_1 = CTkLabel(self.bars_frame, text="CTkScrollbar", height=1)
         self.scrollbar_1 = CTkScrollbar(self.bars_frame, orientation="horizontal")
         self.scrollbar_1.set(0, 0.3)
 
         self.label_vertical = CTkLabel(self.bars_frame, text="vertical", height=1)
         self.frame_vertical = CTkFrame(self.bars_frame, fg_color="transparent")
-        self.progressbar_4 = CTkProgressBar(self.frame_vertical, orientation="vertical", corner_radius=3, thickness=16)
-        self.slider_3 = CTkSlider(self.frame_vertical, orientation="vertical", corner_radius=2, button_length=4)
+        self.progressbar_4 = CTkProgressBar(self.frame_vertical, orientation="vertical", variable=self.bar_var, corner_radius=3, thickness=40, show_value=True)
+        self.slider_5 = CTkSlider(self.frame_vertical, orientation="vertical", variable1=self.bar_var, corner_radius=2, button_length=4, show_value=False)
+        self.slider_6 = CTkSlider(self.frame_vertical, orientation="vertical", mode="any_range", format="{:.2%}", tooltip={"delay": 0})
         self.scrollbar_2 = CTkScrollbar(self.frame_vertical, orientation="vertical", corner_radius=2, border_width=0, thickness=8)
         self.scrollbar_2.set(0, 0.3)
 
         self.progressbar_1.start()
         self.progressbar_2.start()
         self.progressbar_3.bind("<Button-1>", self._start_progress_single_run)
-        self.progressbar_4.set(self.slider_3.get())
-        self.slider_3.configure(command=self.progressbar_4.set)
+        self.progressbar_3.set(text="Click me")
+        self.slider_1.set(0.5)
+        self.slider_2.set(2, 9)
+        self.slider_3.set(55)
+        self.slider_4.set(50, -50)
+        self.slider_6.set(0.3, 0.7)
 
         self.label_progbar_1.pack(padx=20, pady=(self.SPACING, 5))
         self.progressbar_1.pack(padx=20, pady=(0, 5))
@@ -311,15 +356,18 @@ class _Showroom(CTk):
         self.progressbar_3.pack(padx=20, pady=(0, 5))
         self.label_slider_1.pack(padx=20, pady=(self.SPACING, 5))
         self.slider_1.pack(padx=20, pady=(0, 5))
-        self.label_slider_2.pack(padx=20, pady=(0, 5))
         self.slider_2.pack(padx=20, pady=(0, 5))
+        self.label_slider_2.pack(padx=20, pady=(0, 5))
+        self.slider_3.pack(padx=20, pady=(0, 5))
+        self.slider_4.pack(padx=20, pady=(0, 5))
         self.label_scrollbar_1.pack(padx=20, pady=(self.SPACING, 5))
         self.scrollbar_1.pack(padx=20, pady=(0, 5))
 
         self.label_vertical.pack(padx=20, pady=(self.SPACING, 5))
         self.frame_vertical.pack(padx=20, pady=(0, 5))
         self.progressbar_4.pack(side=LEFT, padx=20)
-        self.slider_3.pack(side=LEFT, padx=20)
+        self.slider_5.pack(side=LEFT, padx=20)
+        self.slider_6.pack(side=LEFT, padx=20)
         self.scrollbar_2.pack(side=LEFT, padx=20)
 
         # frames
@@ -334,6 +382,11 @@ class _Showroom(CTk):
         CTkButton(tab1, text="Widget on 1st Tab").pack(pady = 5)
         CTkCheckBox(tab2, text="Widget on 2nd Tab").pack(pady = 5)
         CTkSwitch(tab3, text="Widget on 3rd Tab").pack(pady = 5)
+        self.floating_frame = CTkFloatingFrame(self, corner_radius=20, border_width=5)
+        label = CTkLabel(self.floating_frame, text="A frame detached from any window,\nalways on top of everything,\nthat can contain anything.", width=200, height=200)
+        label.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        self.open_floating_frame = CTkButton(self.frames_frame, text="Open CTkFloatingFrame", command=lambda: self.floating_frame.open(1000, 500))
+        self.close_floating_frame = CTkButton(self.frames_frame, text="Close", command=self.floating_frame.close)
 
         for i in range(100):
             switch = CTkSwitch(self.scrollable_frame_1, text=f"CTkSwitch {i+1}")
@@ -352,16 +405,40 @@ class _Showroom(CTk):
         self.scrollable_frame_1.pack(side=LEFT, padx=(0, 5))
         self.scrollable_frame_2.pack(side=LEFT, padx=(5, 0))
         self.tabview.pack(padx=20, pady=(self.SPACING, 5))
+        self.open_floating_frame.pack(padx=20, pady=(self.SPACING, 5))
+        self.close_floating_frame.pack(padx=20, pady=(0, 5))
 
         # windows
         self.windows_frame: CTkFrame = self.main_tabview.add("Windows")
         self.open_toplevel = CTkButton(self.windows_frame, text="Open CTkToplevel", command=self._open_ctktoplevel)
         self.open_dialog_1 = CTkButton(self.windows_frame, text="Open CTkInputDialog", command=self._open_input_dialog_1)
         self.open_dialog_2 = CTkButton(self.windows_frame, text="with values", command=self._open_input_dialog_2)
+        self.button_withtt_1 = CTkButton(self.windows_frame, text="CTkToolTip")
+        self.tooltip_1 = CTkToolTip(self.button_withtt_1, label={"wraplength": 200},
+                                    title="CTkToolTip",
+                                    text="Little window that opens when the user hovers over the linked widget, which usually contains an explanation of the object.")
+        self.button_withtt_2 = CTkButton(self.windows_frame, text="with any widgets")
+        self.tooltip_2 = CTkToolTip(self.button_withtt_2, mode="live_mouse", anchor="s", fg_color="transparent",
+                                    close_on_interaction=False,
+                                    command=self._update_progressbar_ontt)
+        self.progressbar_ontt = CTkProgressBar(self.tooltip_2, orientation="horizontal", thickness=30, show_value=True)
+        self.progressbar_ontt.pack()
 
         self.open_toplevel.pack(padx=20, pady=(self.SPACING, 5))
         self.open_dialog_1.pack(padx=20, pady=(self.SPACING, 5))
         self.open_dialog_2.pack(padx=20, pady=(0, 5))
+        self.button_withtt_1.pack(padx=20, pady=(self.SPACING, 5))
+        self.button_withtt_2.pack(padx=20, pady=(0, 5))
+
+    def _combo_command(self, value: str) -> None:
+        if value == "UPPERCASE":
+            self.combobox_6.set(self.combobox_6.get().upper())
+        elif value == "lowercase":
+            self.combobox_6.set(self.combobox_6.get().lower())
+        elif value == "Title Case":
+            self.combobox_6.set(self.combobox_6.get().title())
+        elif value == "Strip whitespaces":
+            self.combobox_6.set(self.combobox_6.get().strip())
 
     def _start_progress_single_run(self, _: Event) -> None:
         self.progressbar_3.set(0.0)
@@ -387,12 +464,16 @@ class _Showroom(CTk):
                                 values=["value 1", "value 2", "value 3", "value 4"])
         dialog.get_input()
 
-    def _change_appearance_mode(self, new_appearance_mode: str) -> None:
-        set_appearance_mode(new_appearance_mode)
-
-    def _change_scaling(self, new_scaling: str) -> None:
-        new_scaling_float = int(new_scaling.replace("%", "")) / 100
-        set_widget_scaling(new_scaling_float)
+    def _update_progressbar_ontt(self) -> str:
+        if self.tooltip_2.is_open():
+            if self.progressbar_ontt.get() < 1.0:
+                self.progressbar_ontt.step(0.005)
+            else:
+                self.tooltip_2.close()
+                return "break"
+        else:
+            self.progressbar_ontt.set(0.0, "Move the mouse")
+        return ""
 
     def _change_theme(self, new_theme: str) -> None:
         set_default_color_theme(new_theme)

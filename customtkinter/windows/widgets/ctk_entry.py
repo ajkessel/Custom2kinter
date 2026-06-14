@@ -22,7 +22,7 @@ class CTkEntryThemedArgs(TypedDict, total=False):
     border_color: ColorType
     text_color: ColorType
     placeholder_text_color: ColorType
-    placeholder_text: str
+    placeholder_text: str  #not used if a textvariable is provided
     font: FontType
     justify: Literal["left", "center", "right"]
     show: str
@@ -79,10 +79,10 @@ class CTkEntry(CTkWidget, EntryLike):
         self.grid_columnconfigure(0, weight=1)
 
         # functionality
-        self._state: Literal["normal", "disabled", "readonly"] = kwargs.pop("state", "normal")
+        self._state: Literal["normal", "disabled", "readonly"] = kwargs.pop("state", tkinter.NORMAL)
         self._textvariable: tkinter.StringVar | None = kwargs.pop("textvariable", None)
-        self._is_focused: bool = False
         self._placeholder_text_active: bool = False
+        self._has_focus: bool = False
 
         # font
         self._font: CTkFont = CTkFont.from_parameter(self._theme_info["font"])
@@ -119,9 +119,9 @@ class CTkEntry(CTkWidget, EntryLike):
     def _create_bindings(self, sequence: str | None = None) -> None:
         """ set necessary bindings for functionality of widget, will overwrite other bindings """
         if sequence is None or sequence == "<FocusIn>":
-            self._entry.bind("<FocusIn>", self._entry_focus_in)
+            self._entry.bind("<FocusIn>", self._on_focus_in)
         if sequence is None or sequence == "<FocusOut>":
-            self._entry.bind("<FocusOut>", self._entry_focus_out)
+            self._entry.bind("<FocusOut>", self._on_focus_out)
 
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
@@ -218,10 +218,7 @@ class CTkEntry(CTkWidget, EntryLike):
         if "placeholder_text" in kwargs:
             self._theme_info["placeholder_text"] = kwargs.pop("placeholder_text")
             if self._placeholder_text_active:
-                self._entry.delete(0, tkinter.END)
-                self._entry.insert(0, self._theme_info["placeholder_text"])
-            else:
-                self._activate_placeholder()
+                self._set_regardless(self._theme_info["placeholder_text"])
 
         if "font" in kwargs:
             self._font.remove_size_configure_callback(self._update_font)
@@ -260,32 +257,29 @@ class CTkEntry(CTkWidget, EntryLike):
             return super().cget(attribute_name)
 
     def _activate_placeholder(self) -> None:
-        if self._entry.get() == "" and self._textvariable is None and not self._is_focused:
+        if self._entry.get() == "" and self._textvariable is None and not self._has_focus:
             self._placeholder_text_active = True
 
-            self._entry.configure(fg=self._apply_appearance_mode(self._theme_info["placeholder_text_color"]),
-                                  disabledforeground=self._apply_appearance_mode(self._theme_info["placeholder_text_color"]),
-                                  show="")
-            self._entry.delete(0, tkinter.END)
-            self._entry.insert(0, self._theme_info["placeholder_text"])
+            text_color = self._apply_appearance_mode(self._theme_info["placeholder_text_color"])
+            self._entry.configure(fg=text_color, disabledforeground=text_color, show="")
+            self._set_regardless(self._theme_info["placeholder_text"])
 
     def _deactivate_placeholder(self) -> None:
         if self._placeholder_text_active:
             self._placeholder_text_active = False
 
-            self._entry.configure(fg=self._apply_appearance_mode(self._theme_info["text_color"]),
-                                  disabledforeground=self._apply_appearance_mode(self._theme_info["text_color"]),
-                                  show=self._theme_info["show"])
+            text_color = self._apply_appearance_mode(self._theme_info["text_color"])
+            self._entry.configure(fg=text_color, disabledforeground=text_color, show=self._theme_info["show"])
             self._entry.delete(0, tkinter.END)
 
-    def _entry_focus_out(self, _: tkinter.Event | None = None) -> None:
-        self._is_focused = False
-        self._activate_placeholder()
-
-    def _entry_focus_in(self, _: tkinter.Event | None = None) -> None:
+    def _on_focus_in(self, _: tkinter.Event | None = None) -> None:
         if self._state == tkinter.NORMAL:
-            self._is_focused = True
+            self._has_focus = True
             self._deactivate_placeholder()
+
+    def _on_focus_out(self, _: tkinter.Event | None = None) -> None:
+        self._has_focus = False
+        self._activate_placeholder()
 
     def delete(self, first_index: str | int, last_index: str | int | None = None) -> None:
         self._entry.delete(first_index, last_index)
@@ -297,14 +291,10 @@ class CTkEntry(CTkWidget, EntryLike):
 
     def set(self, string: str) -> None:
         """ Changes the content to the desired value, regardless of the widget's state. """
-        if self._state == tkinter.NORMAL:
-            self._entry.delete(0, tkinter.END)
-            self.insert(0, string)
-        else:
-            self._entry.configure(state=tkinter.NORMAL)
-            self._entry.delete(0, tkinter.END)
-            self.insert(0, string)
-            self._entry.configure(state=self._state)
+        self._deactivate_placeholder()
+        self._set_regardless(string)
+        if string == "":
+            self._activate_placeholder()
 
     def get(self) -> str:
         if self._placeholder_text_active:

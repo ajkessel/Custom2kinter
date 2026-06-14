@@ -10,17 +10,16 @@ class CTkScrollable(ABC):
 
     scroll_duration: int = 500  #extra time in [ms] that is waited before declaring the scroll session finished
 
-    __bind_all_done: bool = False
     __scrolled_widget: CTkScrollable | None = None
     __after_id: str | None = None
 
     def __init__(self, root: tkinter.Misc) -> None:
         #if at least 1 scrollable widget is used, bind the scroll dispatcher to all widgets
-        if not CTkScrollable.__bind_all_done:
-            CTkScrollable.__bind_all_done = True
-            if sys.platform == "darwin" or sys.platform.startswith("win"):
+        if sys.platform == "darwin" or sys.platform.startswith("win"):
+            if "<MouseWheel>" not in root.bind_all():
                 root.bind_all("<MouseWheel>", self.__mouse_scroll_event, add=True)
-            else:
+        else:
+            if "<Button-4>" not in root.bind_all():
                 root.bind_all("<Button-4>", self.__mouse_scroll_event, add=True)
                 root.bind_all("<Button-5>", self.__mouse_scroll_event, add=True)
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tkinter
+from threading import Lock
 from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
@@ -69,13 +70,13 @@ class CTkRadioButton(CTkWidget):
         self._font.add_size_configure_callback(self._update_font)
 
         # functionality
-        self._state: Literal["normal", "disabled"] = kwargs.pop("state", "normal")
+        self._state: Literal["normal", "disabled"] = kwargs.pop("state", tkinter.NORMAL)
         self._command: Callable[[], None] | None = kwargs.pop("command", None)
         self._value: int | float | str | bool = kwargs.pop("value", 0)
         self._textvariable: tkinter.StringVar | None = kwargs.pop("textvariable", None)
         self._variable: tkinter.Variable | None = kwargs.pop("variable", None)
         self._variable_callback_name: str | None = None
-        self._variable_callback_blocked: bool = False
+        self._block_value_propagation: Lock = Lock()
         self._check_state: bool = False
 
         self._bg_canvas = CTkCanvas(master=self,
@@ -366,17 +367,17 @@ class CTkRadioButton(CTkWidget):
                 self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
 
     def _variable_callback(self, *_: str) -> None:
-        if not self._variable_callback_blocked:
-            self.set(self._variable.get() == self._value, from_variable_callback=True)
+        if not self._block_value_propagation.locked():
+            with self._block_value_propagation:
+                self.set(self._variable.get() == self._value)
 
-    def set(self, state: bool, from_variable_callback: bool = False) -> None:
+    def set(self, state: bool) -> None:
         self._check_state = state
         self._draw(force_colors_update=True)
 
-        if self._variable is not None and not from_variable_callback:
-            self._variable_callback_blocked = True
-            self._variable.set(self._value if self._check_state else "")
-            self._variable_callback_blocked = False
+        if self._variable is not None and not self._block_value_propagation.locked():
+            with self._block_value_propagation:
+                self._variable.set(self._value if self._check_state else "")
 
     def invoke(self, _: tkinter.Event | None = None) -> None:
         """ Makes the widget selected if the widget is not disabled.\n

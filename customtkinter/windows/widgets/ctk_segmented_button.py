@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tkinter
 import copy
+from threading import Lock
 from typing import Any, Callable
 from typing_extensions import Literal, TypedDict, Unpack
 
@@ -68,12 +69,12 @@ class CTkSegmentedButton(CTkFrame):
         self._background_corner_colors: tuple[ColorType, ...] | None = kwargs.pop("background_corner_colors", None)
 
         #functionality
-        self._state: Literal["normal", "disabled"] = kwargs.pop("state", "normal")
+        self._state: Literal["normal", "disabled"] = kwargs.pop("state", tkinter.NORMAL)
         self._command: Callable[[str], None] | None = kwargs.pop("command", None)
         self._values: list[str] = kwargs.pop("values", [])
         self._variable: tkinter.StringVar | None = kwargs.pop("variable", None)
-        self._variable_callback_blocked: bool = False
         self._variable_callback_name: str | None = None
+        self._block_value_propagation: Lock = Lock()
         self._buttons_dict: dict[str, CTkButton] = {}  # mapped from value to button object
 
         # check for unknown arguments
@@ -87,7 +88,7 @@ class CTkSegmentedButton(CTkFrame):
 
         if self._variable is not None:
             self._variable_callback_name = self._variable.trace_add("write", self._variable_callback)
-            self.set(self._variable.get(), from_variable_callback=True)
+            self._variable_callback()
 
     def destroy(self) -> None:
         if self._variable is not None:
@@ -102,8 +103,9 @@ class CTkSegmentedButton(CTkFrame):
                 button.configure(height=height)
 
     def _variable_callback(self, *_: str) -> None:
-        if not self._variable_callback_blocked:
-            self.set(self._variable.get(), from_variable_callback=True)
+        if not self._block_value_propagation.locked():
+            with self._block_value_propagation:
+                self.set(self._variable.get())
 
     @staticmethod
     def _check_unique_values(values: list[str]) -> None:
@@ -305,7 +307,7 @@ class CTkSegmentedButton(CTkFrame):
             self._variable = kwargs.pop("variable")
             if self._variable is not None:
                 self._variable_callback_name = self._variable.trace_add("write", self._variable_callback)
-                self.set(self._variable.get(), from_variable_callback=True)
+                self._variable_callback()
 
         if "command" in kwargs:
             self._command = kwargs.pop("command")
@@ -333,15 +335,14 @@ class CTkSegmentedButton(CTkFrame):
         else:
             return super().cget(attribute_name)
 
-    def set(self, value: str, from_variable_callback: bool = False, from_button_callback: bool = False) -> None:
+    def set(self, value: str, from_button_callback: bool = False) -> None:
         """ Changes the selected value to the desired one, regardless of the widget's state and admissible values. """
         if value != self._current_value:
             self._select_button_by_value(value)
 
-            if self._variable is not None and not from_variable_callback:
-                self._variable_callback_blocked = True
-                self._variable.set(value)
-                self._variable_callback_blocked = False
+            if self._variable is not None and not self._block_value_propagation.locked():
+                with self._block_value_propagation:
+                    self._variable.set(value)
 
             if from_button_callback:
                 if self._command is not None:

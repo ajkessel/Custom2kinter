@@ -2,6 +2,7 @@ from .ctk_button import CTkButton
 from .ctk_checkbox import CTkCheckBox
 from .ctk_combobox import CTkComboBox
 from .ctk_entry import CTkEntry
+from .ctk_floating_frame import CTkFloatingFrame
 from .ctk_frame import CTkFrame
 from .ctk_label import CTkLabel
 from .ctk_optionmenu import CTkOptionMenu
@@ -10,7 +11,9 @@ from .ctk_radiobutton import CTkRadioButton
 from .ctk_scrollbar import CTkScrollbar
 from .ctk_segmented_button import CTkSegmentedButton
 from .ctk_slider import CTkSlider
+from .ctk_spinbox import CTkSpinBox
 from .ctk_switch import CTkSwitch
 from .ctk_tabview import CTkTabview
 from .ctk_textbox import CTkTextbox
+from .ctk_tooltip import CTkToolTip
 from .ctk_scrollable_frame import CTkScrollableFrame

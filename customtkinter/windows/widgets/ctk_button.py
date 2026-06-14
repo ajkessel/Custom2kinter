@@ -99,7 +99,7 @@ class CTkButton(CTkWidget):
         self._bind_targets.append(self._image_label)
 
         # functionality
-        self._state: Literal["normal", "disabled"] = kwargs.pop("state", "normal")
+        self._state: Literal["normal", "disabled"] = kwargs.pop("state", tkinter.NORMAL)
         self._command: Callable[[], None] | None = kwargs.pop("command", None)
         self._click_animation_running: bool = False
         self._mouse_inside: bool = False

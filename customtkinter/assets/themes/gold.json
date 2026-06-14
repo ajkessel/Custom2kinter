@@ -29,6 +29,35 @@
     "top_fg_color": ["gray81", "gray20"],
     "border_color": ["gray65", "gray28"]
   },
+  "CTkFloatingFrame": {
+    "width": 200,
+    "height": 200,
+    "corner_radius": 6,
+    "border_width": 0,
+    "fg_color": ["gray86", "gray17"],
+    "border_color": ["gray65", "gray28"],
+    "transparency": 0.0
+  },
+  "CTkToolTip": {
+    "width": 120,
+    "height": 60,
+    "corner_radius": 6,
+    "border_width": 0,
+    "border_spacing": 8,
+    "internal_spacing": 5,
+    "fg_color": ["gray76", "gray27"],
+    "border_color": ["gray65", "gray28"],
+    "transparency": 0.0,
+    "x_offset": 0,
+    "y_offset": 5,
+    "anchor": "sw",
+    "delay": 500,
+    "label": {
+      "height": 0,
+      "anchor": "w",
+      "justify": "left"
+    }
+  },
   "CTkScrollableFrame": {
     "width": 200,
     "height": 200,
@@ -151,6 +180,8 @@
     "button_hover_color": ["#6E7174", "#7A848D"],
     "text_color": ["gray10", "#DCE4EE"],
     "text_color_disabled": ["gray50", "gray45"],
+    "placeholder_text_color": ["gray52", "gray62"],
+    "placeholder_text": "",
     "hover": true,
     "font": {},
     "justify": "left",
@@ -173,6 +204,24 @@
     "anchor": "w",
     "compound": "right",
     "dropdown": {}
+  },
+  "CTkSpinBox": {
+    "width": 100,
+    "height": 28,
+    "corner_radius": 6,
+    "border_width": 2,
+    "border_spacing": 3,
+    "bg_color": "transparent",
+    "fg_color": ["#F9F9FA", "#343638"],
+    "border_color": ["#979DA2", "#565B5E"],
+    "button_color": ["#979DA2", "#565B5E"],
+    "button_hover_color": ["#6E7174", "#7A848D"],
+    "text_color": ["gray10", "#DCE4EE"],
+    "text_color_disabled": ["gray50", "gray45"],
+    "hover": true,
+    "font": {},
+    "justify": "left",
+    "compound": "right"
   },
   "CTkCheckBox": {
     "width": 100,
@@ -246,7 +295,10 @@
     "bg_color": "transparent",
     "fg_color": ["#939BA2", "#4A4D50"],
     "border_color": ["gray", "gray"],
-    "progress_color": ["#EFB951", "#ECA607"]
+    "progress_color": ["#EFB951", "#ECA607"],
+    "text_color": ["gray10", "#DCE4EE"],
+    "font": {},
+    "show_value": false
   },
   "CTkSlider": {
     "orientation": "horizontal",
@@ -261,7 +313,12 @@
     "button_hover_color": ["#DBA220", "#B57F05"],
     "border_color": "transparent",
     "progress_color": ["gray40", "#AAB0B5"],
-    "hover": true
+    "hover": true,
+    "show_value": true,
+    "tooltip": {
+      "delay": -1,
+      "transparency": 0.2
+    }
   },
   "CTkScrollbar": {
     "orientation": "vertical",

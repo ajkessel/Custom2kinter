@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import tkinter
 import math
+from threading import Lock
 from typing import Any
 from typing_extensions import Literal, TypedDict, Unpack
 
 from .core_widget_classes import CTkContainer, CTkWidget
 from .core_rendering import CTkCanvas, BorderedRoundedRect, RoundedRect
+from .font import CTkFont, FontType
 from .theme import ColorType, TransparentColorType, ThemeManager
 from .utility import pop_from_dict_by_iterable, check_kwargs_empty, get_width_height_from_orientation
 
@@ -21,6 +23,9 @@ class CTkProgressBarThemedArgs(TypedDict, total=False):
     fg_color: ColorType
     border_color: ColorType
     progress_color: ColorType
+    text_color: ColorType
+    font: FontType
+    show_value: bool
 
 class CTkProgressBarArgs(CTkProgressBarThemedArgs, total=False):
     mode: Literal["determinate", "indeterminate", "single_run"]
@@ -36,6 +41,7 @@ class CTkProgressBar(CTkWidget):
     """
 
     update_time: int = 40  # interval in [ms], to update progress value
+    indeterminate_width: float = 0.4  # [%]
 
     def __init__(self,
                  master: CTkContainer,
@@ -63,18 +69,21 @@ class CTkProgressBar(CTkWidget):
 
         # control variable
         self._variable: tkinter.DoubleVar | tkinter.IntVar | None = kwargs.pop("variable", None)
-        self._variable_callback_blocked: bool = False
         self._variable_callback_name: str | None = None
         self._is_intvar = isinstance(self._variable, tkinter.IntVar)
+        self._block_value_propagation: Lock = Lock()
 
         # functionality
         self._mode: Literal["determinate", "indeterminate", "single_run"] = kwargs.pop("mode", "determinate")
         self._progress_speed: float = kwargs.pop("progress_speed", 0.5) # [%/s]
         self._value: float = 0.0 # range 0-1
-        self._indeterminate_width: float = 0.4  # range 0-1
         self._loop_running: bool = False
         self._loop_after_id: str | None = None
         self._loop_prev_time: float = 0.0
+
+        # font
+        self._font: CTkFont = CTkFont.from_parameter(self._theme_info["font"])
+        self._font.add_size_configure_callback(self._update_font)
 
         self._canvas = CTkCanvas(master=self,
                                  highlightthickness=0,
@@ -83,6 +92,10 @@ class CTkProgressBar(CTkWidget):
         self._canvas.place(x=0, y=0, relwidth=1, relheight=1)
         self._rounded_rect = BorderedRoundedRect(self._canvas)
         self._progress_bar = RoundedRect(self._canvas)
+        self._text_id = self._canvas.create_text(0, 0,
+                                                 text="",
+                                                 anchor="center",
+                                                 font=self._apply_font_scaling(self._font))
         self._bind_targets.append(self._canvas)
         self._focus_target = self._canvas
 
@@ -98,6 +111,7 @@ class CTkProgressBar(CTkWidget):
     def _set_scaling(self, new_widget_scaling: float, new_window_scaling: float) -> None:
         super()._set_scaling(new_widget_scaling, new_window_scaling)
 
+        self._canvas.itemconfigure(self._text_id, font=self._apply_font_scaling(self._font))
         self._canvas.configure(width=self._apply_scaling(self._desired_width),
                                height=self._apply_scaling(self._desired_height))
         self._draw()
@@ -109,10 +123,14 @@ class CTkProgressBar(CTkWidget):
                                height=self._apply_scaling(self._desired_height))
         self._draw()
 
+    def _update_font(self) -> None:
+        self._canvas.itemconfigure(self._text_id, font=self._apply_font_scaling(self._font))
+
     def destroy(self) -> None:
         self.stop()
         if self._variable is not None:
             self._variable.trace_remove("write", self._variable_callback_name)
+        self._font.remove_size_configure_callback(self._update_font)
 
         super().destroy()
 
@@ -132,8 +150,8 @@ class CTkProgressBar(CTkWidget):
 
         if self._mode == "indeterminate":
             progress_value = (1 - math.cos(2 * math.pi * self._value)) / 2
-            progress_value_1 = max(0.0, progress_value - (self._indeterminate_width / 2))
-            progress_value_2 = min(1.0, progress_value + (self._indeterminate_width / 2))
+            progress_value_1 = max(0.0, progress_value - (self.indeterminate_width / 2))
+            progress_value_2 = min(1.0, progress_value + (self.indeterminate_width / 2))
         else:
             progress_value_1 = 0.0
             if self._value == 0.0:
@@ -154,14 +172,18 @@ class CTkProgressBar(CTkWidget):
                                                           width, height,
                                                           corner_radius)
 
+        self._canvas.coords(self._text_id, self._current_width / 2, self._current_height / 2)
+
         if force_colors_update or requires_recoloring_1 or requires_recoloring_2:
             self._rounded_rect.raise_()
             self._progress_bar.raise_()
+            self._canvas.tag_raise(self._text_id)
 
             self._canvas.configure(bg=self._apply_appearance_mode(self._bg_color))
             self._rounded_rect.set_border_color(self._apply_appearance_mode(self._theme_info["border_color"]))
             self._rounded_rect.set_main_color(self._apply_appearance_mode(self._theme_info["fg_color"]))
             self._progress_bar.set_color(self._apply_appearance_mode(self._theme_info["progress_color"]))
+            self._canvas.itemconfigure(self._text_id, fill=self._apply_appearance_mode(self._theme_info["text_color"]))
 
     def configure(self, require_redraw: bool = False, **kwargs: Unpack[CTkProgressBarArgs]) -> None:
         if "thickness" in kwargs:
@@ -192,6 +214,20 @@ class CTkProgressBar(CTkWidget):
             self._theme_info["progress_color"] = self._check_color_type(kwargs.pop("progress_color"))
             require_redraw = True
 
+        if "text_color" in kwargs:
+            self._theme_info["text_color"] = self._check_color_type(kwargs.pop("text_color"))
+            require_redraw = True
+
+        if "font" in kwargs:
+            self._font.remove_size_configure_callback(self._update_font)
+            self._font = CTkFont.from_parameter(kwargs.pop("font"))
+            self._font.add_size_configure_callback(self._update_font)
+            self._update_font()
+
+        if "show_value" in kwargs:
+            self._theme_info["show_value"] = kwargs.pop("show_value")
+            self.set()
+
         if "variable" in kwargs:
             if self._variable is not None:
                 self._variable.trace_remove("write", self._variable_callback_name)
@@ -211,7 +247,9 @@ class CTkProgressBar(CTkWidget):
         super().configure(require_redraw=require_redraw, **kwargs)
 
     def cget(self, attribute_name: str) -> Any:
-        if attribute_name == "mode":
+        if attribute_name == "font":
+            return self._font
+        elif attribute_name == "mode":
             return self._mode
         elif attribute_name == "progress_speed":
             return self._progress_speed
@@ -223,27 +261,37 @@ class CTkProgressBar(CTkWidget):
             return super().cget(attribute_name)
 
     def _variable_callback(self, *_: str) -> None:
-        if not self._variable_callback_blocked:
-            value = self._variable.get()
-            self.set(value / 100 if self._is_intvar else value, from_variable_callback=True)
+        if not self._block_value_propagation.locked():
+            with self._block_value_propagation:
+                value = self._variable.get()
+                self.set(value / 100 if self._is_intvar else value)
 
-    def set(self, value: float, from_variable_callback: bool = False) -> None:
-        """ Sets progress to specified value
+    def set(self, value: float | None = None, text: str | None = None) -> None:
+        """ Sets progress or text to specified values
         \nFor 'indeterminate' mode:
         -   0% -> completely on the left/bottom
         -  50% -> completely on the right/top
         - 100% -> again on the left/bottom, ready for a new cycle 
-        \nFor other mode:
+        \nFor other modes:
         -   0% -> completely on the left/bottom
-        - 100% -> completely on the right/top """
-        self._value = max(0.0, min(value, 1.0))
+        - 100% -> completely on the right/top
+        \nIf text is not provided and 'show_value' is True, 'value' is shown as a percentage. """
 
-        self._draw()
+        if value is not None:
+            self._value = max(0.0, min(value, 1.0))
 
-        if self._variable is not None and not from_variable_callback:
-            self._variable_callback_blocked = True
-            self._variable.set(round(self._value * 100) if self._is_intvar else self._value)
-            self._variable_callback_blocked = False
+            self._draw()
+
+            if self._variable is not None and not self._block_value_propagation.locked():
+                with self._block_value_propagation:
+                    self._variable.set(round(self._value * 100) if self._is_intvar else self._value)
+
+            if text is None and self._theme_info["show_value"]:
+                text = f"{self._value:.0%}"
+
+        if text is not None:
+            self._canvas.itemconfigure(self._text_id, text=text)
+
 
     def step(self, increment: float) -> None:
         """ Increases progress by specified value (it can be negative) """
@@ -255,7 +303,7 @@ class CTkProgressBar(CTkWidget):
         -   0% -> completely on the left/bottom
         -  50% -> completely on the right/top
         - 100% -> again on the left/bottom, ready for a new cycle 
-        \nFor other mode:
+        \nFor other modes:
         -   0% -> completely on the left/bottom
         - 100% -> completely on the right/top """
         return self._value
