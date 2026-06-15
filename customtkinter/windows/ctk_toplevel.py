@@ -254,7 +254,7 @@ class CTkToplevel(tkinter.Toplevel, CTkAppearanceModeBaseClass, CTkScalingBaseCl
 
     @classmethod
     def _disable_macos_dark_title_bar(cls) -> None:
-        if sys.platform == "darwin" and not cls.deactivate_window_header_manipulation:  # macOS
+        if sys.platform == "darwin" and not cls.deactivate_windows_header_manipulation:  # macOS
             if version.parse(platform.python_version()) < version.parse("3.10"):
                 if version.parse(tkinter.Tcl().call("info", "patchlevel")) >= version.parse("8.6.9"):  # Tcl/Tk >= 8.6.9
                     os.system("defaults delete -g NSRequiresAquaSystemAppearance")
