@@ -8,6 +8,7 @@ import shutil
 class FontManager:
 
     linux_font_path: str = "~/.fonts/"
+    darwin_font_path: str = "~/Library/Fonts/"
 
     @classmethod
     def init_font_manager(cls) -> bool:
@@ -24,6 +25,15 @@ class FontManager:
         # other platforms
         else:
             return True
+
+    @classmethod
+    def copy_fonts(cls, font_path: str, system_font_path: str) -> bool:
+        try:
+            shutil.copy(font_path, system_font_path)
+            return True
+        except Exception as err:
+            sys.stderr.write("FontManager error: " + str(err) + "\n")
+            return False
 
     @classmethod
     def windows_load_font(cls, font_path: str | bytes, private: bool = True, enumerable: bool = False) -> bool:
@@ -55,13 +65,13 @@ class FontManager:
 
         # Linux
         elif sys.platform.startswith("linux"):
-            try:
-                shutil.copy(font_path, os.path.expanduser(cls.linux_font_path))
-                return True
-            except Exception as err:
-                sys.stderr.write("FontManager error: " + str(err) + "\n")
-                return False
+            return cls.copy_fonts(font_path, os.path.expanduser(cls.linux_font_path))
 
-        # macOS and others
+        # macOS
+        elif sys.platform.startswith("darwin"):
+            return cls.copy_fonts(font_path, os.path.expanduser(cls.darwin_font_path))
+
+
+        # others
         else:
             return False
