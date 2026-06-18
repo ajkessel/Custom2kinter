@@ -13,6 +13,3 @@ from .draw_engine import DrawingMethodType
 from .draw_engine import SectionType
 
 CTkCanvas.init_font_character_mapping()
-
-# determine draw method based on current platform
-BaseShape.preferred_drawing_method = "font"
