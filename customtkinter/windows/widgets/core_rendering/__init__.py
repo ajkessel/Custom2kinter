@@ -15,7 +15,4 @@ from .draw_engine import SectionType
 CTkCanvas.init_font_character_mapping()
 
 # determine draw method based on current platform
-if sys.platform == "darwin":
-    BaseShape.preferred_drawing_method = "polygons"
-else:
-    BaseShape.preferred_drawing_method = "font"
+BaseShape.preferred_drawing_method = "font"
