@@ -41,7 +41,7 @@ class CTkComboBoxArgs(CTkComboBoxThemedArgs, ValidTkEntryArgs, total=False, clos
     values: list[str]
     separator: str  #used only in "toggle" mode
     variable: tkinter.StringVar | None
-    command: Callable[[str], None] | None
+    command: Callable[[str], Literal["break"] | None] | None
 
 
 class CTkComboBox(CTkWidget, EntryLike):
@@ -85,7 +85,7 @@ class CTkComboBox(CTkWidget, EntryLike):
         self._values: list[str] = kwargs.pop("values", [])
         self._separator: str = kwargs.pop("separator", " ")
         self._type: str = self._values[0] if self._mode == "type" and self._values else ""
-        self._command: Callable[[str], None] | None = kwargs.pop("command", None)
+        self._command: Callable[[str], Literal["break"] | None] | None = kwargs.pop("command", None)
         self._variable: tkinter.StringVar | None = kwargs.pop("variable", None)
         self._applied_button_width: int = -1
         self._close_on_next_click: bool = False
@@ -401,8 +401,7 @@ class CTkComboBox(CTkWidget, EntryLike):
     def _on_enter(self, _: tkinter.Event | None = None) -> None:
         self._close_on_next_click = self._dropdown_menu.is_open()
         if self._state != tkinter.DISABLED and len(self._values) > 0:
-            cursor = get_proper_cursor("clickable")
-            if cursor is not None:
+            if cursor := get_proper_cursor("clickable"):
                 self._canvas.configure(cursor=cursor)
 
             if self._theme_info["hover"]:
@@ -412,8 +411,7 @@ class CTkComboBox(CTkWidget, EntryLike):
                 self._rounded_rect.set_border_color(color, self._theme_info["compound"])
 
     def _on_leave(self, _: tkinter.Event | None = None) -> None:
-        cursor = get_proper_cursor("normal")
-        if cursor is not None:
+        if cursor := get_proper_cursor("normal"):
             self._canvas.configure(cursor=cursor)
 
         # restore color of button parts
@@ -422,26 +420,27 @@ class CTkComboBox(CTkWidget, EntryLike):
         self._rounded_rect.set_border_color(color, self._theme_info["compound"])
 
     def _dropdown_callback(self, value: str) -> None:
-        if self._mode == "replace":
-            self.set(value)
-
-        elif self._mode == "toggle":
-            string = self.get()
-            values = string.split(self._separator) if string else []
-            try:
-                values.remove(value)
-            except ValueError:
-                values.append(value)
-            self.set(self._separator.join(values))
-
-        elif self._mode == "type":
-            self._type = value
-            if self._placeholder_text_active:
-                self._set_regardless(value)
-
         #in command mode, just invoke the function
-        if self._command is not None:
-            self._command(value)
+        retval = "" if self._command is None else self._command(value)
+
+        #if _command() returns exactly "break", operation is stopped
+        if retval != "break":
+            if self._mode == "replace":
+                self.set(value)
+
+            elif self._mode == "toggle":
+                string = self.get()
+                values = string.split(self._separator) if string else []
+                try:
+                    values.remove(value)
+                except ValueError:
+                    values.append(value)
+                self.set(self._separator.join(values))
+
+            elif self._mode == "type":
+                self._type = value
+                if self._placeholder_text_active:
+                    self._set_regardless(value)
 
         #in toggle mode, re-open the menu to allow the user
         # to click multiple values consecutively

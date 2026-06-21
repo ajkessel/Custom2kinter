@@ -41,7 +41,7 @@ class CTkSpinBoxArgs(CTkSpinBoxThemedArgs, ValidTkEntryArgs, total=False, closed
     buttonincrement: int | float
     scrollincrement: int | float
     variable: tkinter.IntVar | tkinter.DoubleVar | tkinter.StringVar | None
-    command: Callable[[int | float | str], None] | None
+    command: Callable[[int | float | str], Literal["break"] | None] | None
 
 
 class CTkSpinBox(CTkWidget, CTkScrollable, EntryLike):
@@ -86,7 +86,7 @@ class CTkSpinBox(CTkWidget, CTkScrollable, EntryLike):
         self._values: list[int | float | str] | None = kwargs.pop("values", None)
         self._buttonincrement: int | float
         self._scrollincrement: int | float
-        self._command: Callable[[int | float | str], None] | None = kwargs.pop("command", None)
+        self._command: Callable[[int | float | str], Literal["break"] | None] | None = kwargs.pop("command", None)
         self._variable: tkinter.IntVar | tkinter.DoubleVar | tkinter.StringVar | None = kwargs.pop("variable", None)
         self._support_variable: tkinter.StringVar | None = None
         self._variable_callback_name: str | None = None
@@ -218,6 +218,11 @@ class CTkSpinBox(CTkWidget, CTkScrollable, EntryLike):
                                                         self._current_height * 0.67,
                                                         self._current_height / 3.5,
                                                         180)
+
+        #make sure arrows are horizontally aligned (with "font" method, it is not always guaranteed)
+        bbox_up = self._arrow_up.bbox()
+        bbox_down = self._arrow_down.bbox()
+        self._arrow_down.move((bbox_up[0] + bbox_up[2] - bbox_down[0] - bbox_down[2]) / 2, 0)
 
         if (self._rounded_rect.info["spacings_changed"] or
             abs(self._applied_button_width - self._rounded_rect.info.get(f"{compound}_section_width", 0)) > 1):
@@ -386,8 +391,7 @@ class CTkSpinBox(CTkWidget, CTkScrollable, EntryLike):
 
     def _on_enter(self, button: Literal["top", "bottom"]) -> None:
         if self._state != tkinter.DISABLED:
-            cursor = get_proper_cursor("clickable")
-            if cursor is not None:
+            if cursor := get_proper_cursor("clickable"):
                 self._canvas.configure(cursor=cursor)
 
             if self._theme_info["hover"]:
@@ -398,8 +402,7 @@ class CTkSpinBox(CTkWidget, CTkScrollable, EntryLike):
                 self._rounded_rect.set_border_color(color, section)
 
     def _on_leave(self, _: tkinter.Event | None = None) -> None:
-        cursor = get_proper_cursor("normal")
-        if cursor is not None:
+        if cursor := get_proper_cursor("normal"):
             self._canvas.configure(cursor=cursor)
 
         # restore color of button parts
@@ -515,10 +518,11 @@ class CTkSpinBox(CTkWidget, CTkScrollable, EntryLike):
                 if self._to is not None and new_value > self._to:
                     new_value = self._to
 
-            self.set(new_value)
+            retval = "" if self._command is None else self._command(new_value)
 
-            if self._command is not None:
-                self._command(new_value)
+            #if _command() returns exactly "break", operation is stopped
+            if retval != "break":
+                self.set(new_value)
 
     def _update_variable(self) -> None:
         if self._variable is None:

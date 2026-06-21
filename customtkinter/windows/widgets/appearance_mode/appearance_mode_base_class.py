@@ -52,7 +52,7 @@ class CTkAppearanceModeBaseClass(ABC):
             return color
 
     @staticmethod
-    def _check_color_type(color: TransparentColorType | list[str],
+    def _check_color_type(color: TransparentColorType,
                           transparency: bool = False) -> TransparentColorType:
         if color is None:
             raise ValueError("color is None, for transparency set color='transparent'")

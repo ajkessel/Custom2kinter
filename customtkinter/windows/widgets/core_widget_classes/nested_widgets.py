@@ -5,6 +5,9 @@ from abc import ABC
 from typing import Any, Callable
 from typing_extensions import Literal
 
+from ..core_rendering import CTkCanvas
+from ..utility import get_proper_cursor
+
 
 class EntryLike(ABC):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -237,3 +240,69 @@ class TextLike(ABC):
 
     def yview_scroll(self, number: int, what: Literal["units", "pages"]) -> None:
         return self._text.yview_scroll(number, what)
+
+
+class CanvasWithLabel(ABC):
+    def __init__(self, width: int, height: int, canvas_width: int, canvas_height: int) -> None:
+        self._bg_canvas = CTkCanvas(master=self,
+                                    highlightthickness=0,
+                                    width=width,
+                                    height=height)
+        self._bg_canvas.grid(row=0, column=0, rowspan=3, columnspan=3, sticky="nsew")
+
+        self._canvas = CTkCanvas(master=self,
+                                 highlightthickness=0,
+                                 width=canvas_width,
+                                 height=canvas_height)
+
+        self._text_label = tkinter.Label(master=self, bd=0, padx=0, pady=0)
+
+    def _update_geometry(self, compound: str, widget_label_spacing: int) -> None:
+        # configure grid system (1x3 or 3x1)
+
+        if not self._text_label.cget("text") and not self._text_label.cget("textvariable"):
+            if isinstance(self, tkinter.Misc):
+                self.grid_rowconfigure(0, weight=1)
+                self.grid_rowconfigure((1, 2), weight=0, minsize=0)
+                self.grid_columnconfigure(0, weight=1)
+                self.grid_columnconfigure((1, 2), weight=0, minsize=0)
+            self._canvas.grid(row=0, column=0)
+            self._text_label.grid_forget()
+
+        else:
+            if compound in ("left", "right"):
+                if isinstance(self, tkinter.Frame):
+                    self.grid_columnconfigure(0, weight=0 if compound == "left" else 1)
+                    self.grid_columnconfigure(1, weight=0, minsize=widget_label_spacing)
+                    self.grid_columnconfigure(2, weight=1 if compound == "left" else 0)
+                    self.grid_rowconfigure(0, weight=1)
+                    self.grid_rowconfigure((1, 2), weight=0, minsize=0)
+
+                self._text_label.configure(justify=compound)
+            else:
+                if isinstance(self, tkinter.Frame):
+                    self.grid_rowconfigure(0, weight=0 if compound == "top" else 1)
+                    self.grid_rowconfigure(1, weight=0, minsize=widget_label_spacing)
+                    self.grid_rowconfigure(2, weight=1 if compound == "top" else 0)
+                    self.grid_columnconfigure(0, weight=1)
+                    self.grid_columnconfigure((1, 2), weight=0, minsize=0)
+
+                self._text_label.configure(justify=tkinter.CENTER)
+
+            if compound == "left":
+                self._canvas.grid(row=0, column=0, sticky="e")
+                self._text_label.grid(row=0, column=2, sticky="w")
+            elif compound == "right":
+                self._text_label.grid(row=0, column=0, sticky="e")
+                self._canvas.grid(row=0, column=2, sticky="w")
+            elif compound == "top":
+                self._canvas.grid(row=0, column=0, sticky="s")
+                self._text_label.grid(row=2, column=0, sticky="n")
+            else:
+                self._text_label.grid(row=0, column=0, sticky="s")
+                self._canvas.grid(row=2, column=0, sticky="n")
+
+    def _set_cursor(self, mode: Literal["normal", "clickable"]) -> None:
+        if cursor := get_proper_cursor(mode):
+            self._canvas.configure(cursor=cursor)
+            self._text_label.configure(cursor=cursor)

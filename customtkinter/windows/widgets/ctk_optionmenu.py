@@ -35,7 +35,7 @@ class CTkOptionMenuArgs(CTkOptionMenuThemedArgs, total=False, closed=True):
     state: Literal["normal", "disabled"]
     values: list[str] | None
     variable: tkinter.StringVar | None
-    command: Callable[[str], None] | None
+    command: Callable[[str], Literal["break"] | None] | None
 
 
 class CTkOptionMenu(CTkWidget):
@@ -69,7 +69,7 @@ class CTkOptionMenu(CTkWidget):
 
         # functionality
         self._state: Literal["normal", "disabled"] = kwargs.pop("state", tkinter.NORMAL)
-        self._command: Callable[[str], None] | None = kwargs.pop("command", None)
+        self._command: Callable[[str], Literal["break"] | None] | None = kwargs.pop("command", None)
         self._variable: tkinter.StringVar | None = kwargs.pop("variable", None)
         self._variable_callback_name: str | None = None
         self._block_value_propagation: Lock = Lock()
@@ -163,8 +163,7 @@ class CTkOptionMenu(CTkWidget):
         super().destroy()
 
     def _set_cursor(self) -> None:
-        cursor = get_proper_cursor("normal" if self._state != tkinter.NORMAL else "clickable")
-        if cursor is not None:
+        if cursor := get_proper_cursor("normal" if self._state != tkinter.NORMAL else "clickable"):
             self.configure(cursor=cursor)
 
     def _draw(self, force_colors_update: bool = False) -> None:
@@ -332,9 +331,11 @@ class CTkOptionMenu(CTkWidget):
                 self.set(self._variable.get())
 
     def _dropdown_callback(self, value: str) -> None:
-        self.set(value)
-        if self._command is not None:
-            self._command(self._current_value)
+        retval = "" if self._command is None else self._command(value)
+
+        #if _command() returns exactly "break", operation is stopped
+        if retval != "break":
+            self.set(value)
 
     def set(self, value: str) -> None:
         """ Changes the content to the desired value, regardless of the widget's state and admissible values. """

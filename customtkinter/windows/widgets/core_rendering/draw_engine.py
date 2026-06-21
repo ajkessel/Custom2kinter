@@ -51,6 +51,10 @@ def rototraslation(points: tuple[tuple[float | int, float | int], ...],
     sin = math.sin(angle*math.pi/180)
     return tuple((x*cos - y*sin + x_pos, x*sin + y*cos + y_pos) for x, y in points)
 
+def collapse_points(points: tuple[tuple[float | int, float | int], ...]) -> tuple[float | int, ...]:
+    #older Python versions require the coordinates to be passed individually...
+    return tuple(val for point in points for val in point)
+
 
 @dataclass(frozen=True)
 class BaseShape:
@@ -69,6 +73,12 @@ class BaseShape:
             super().__setattr__("drawing_method", self.preferred_drawing_method)
         super().__setattr__("_name", f"shape{self.canvas.shapes_counter}")
         self.canvas.shapes_counter += 1
+
+    def bbox(self) -> tuple[int, int, int, int]:
+        return self.canvas.bbox(self._name)
+
+    def move(self, x_delta: int, y_delta: int) -> None:
+        self.canvas.move(self._name, x_delta, y_delta)
 
     def raise_(self) -> None:
         self.canvas.tag_raise(self._name)
@@ -536,7 +546,7 @@ class Arrow(BaseShape):
                 requires_recoloring = True
 
             self.canvas.coords(self._name, x_position, y_position)
-            self.canvas.itemconfigure(self._name, font=("CustomTkinter_shapes_font", -size))
+            self.canvas.itemconfigure(self._name, font=("CustomTkinter_shapes_font", -size), angle=180-angle)
 
         else:
             if not self.canvas.find_withtag(self._name):
@@ -549,14 +559,14 @@ class Arrow(BaseShape):
                 requires_recoloring = True
 
             #points for arrow centered in (0, 0) pointing up
-            points = ((- size / 2, + size / 5),
-                      (    0     , - size / 5),
-                      (+ size / 2, + size / 5))
+            radius = size / 10
+            points = ((- size / 2 + radius, + size * 0.2 - radius),
+                      (    0              , - size * 0.3 + radius),
+                      (+ size / 2 - radius, + size * 0.2 - radius))
             points = rototraslation(points, angle, x_position, y_position)
 
-            #older Python versions require the coordinates to be passed individually...
-            self.canvas.coords(self._name, *points[0], *points[1], *points[2])
-            self.canvas.itemconfigure(self._name, width=round(size / 4))
+            self.canvas.coords(self._name, *collapse_points(points))
+            self.canvas.itemconfigure(self._name, width=round(radius * 2))
 
         return requires_recoloring
 
@@ -594,7 +604,7 @@ class Bar(BaseShape):
                 requires_recoloring = True
 
             self.canvas.coords(self._name, x_position, y_position)
-            self.canvas.itemconfigure(self._name, font=("CustomTkinter_shapes_font", -size))
+            self.canvas.itemconfigure(self._name, font=("CustomTkinter_shapes_font", -size), angle=90-angle)
 
         else:
             if not self.canvas.find_withtag(self._name):
@@ -607,13 +617,13 @@ class Bar(BaseShape):
                 requires_recoloring = True
 
             #points for vertical line centered in (0, 0)
-            points = ((0, + size / 2),
-                      (0, - size / 2))
+            radius = size / 10
+            points = ((0, + size / 2 - radius),
+                      (0, - size / 2 + radius))
             points = rototraslation(points, angle, x_position, y_position)
 
-            #older Python versions require the coordinates to be passed individually...
-            self.canvas.coords(self._name, *points[0], *points[1])
-            self.canvas.itemconfigure(self._name, width=round(size / 6))
+            self.canvas.coords(self._name, *collapse_points(points))
+            self.canvas.itemconfigure(self._name, width=round(radius * 2))
 
         return requires_recoloring
 
@@ -669,3 +679,137 @@ class Checkmark(BaseShape):
 
     def set_color(self, color: str) -> None:
         self.canvas.itemconfig(self._name, fill=color)
+
+
+@dataclass(frozen=True)
+class Star(BaseShape):
+    """ Draws a 5-pointed star at (x_position, y_position) with given size. """
+
+    def update(self,
+               x_position: float | int,
+               y_position: float | int,
+               size: float | int) -> bool:
+        """Returns True if recoloring is necessary."""
+
+        x_position = round(x_position)
+        y_position = round(y_position)
+        size = round(size)
+        state = tkinter.DISABLED if self.events_transparent else tkinter.NORMAL
+        requires_recoloring = False
+
+        if self.drawing_method == "font":
+            if not self.canvas.find_withtag(self._name):
+                self.canvas.create_text(0, 0, text="a",
+                                        font=("CustomTkinter_shapes_font", -size),
+                                        tags=(self._name, f"{self._name}_left"),
+                                        anchor=tkinter.CENTER,
+                                        state=state)
+                self.canvas.create_text(0, 0, text="b",
+                                        font=("CustomTkinter_shapes_font", -size),
+                                        tags=(self._name, f"{self._name}_right"),
+                                        anchor=tkinter.CENTER,
+                                        state=state)
+                requires_recoloring = True
+
+            for section in ("left", "right"):
+                self.canvas.coords(f"{self._name}_{section}", x_position, y_position)
+                self.canvas.itemconfigure(f"{self._name}_{section}", font=("CustomTkinter_shapes_font", -size))
+
+        else:
+            if not self.canvas.find_withtag(self._name):
+                self.canvas.create_polygon(0, 0, 0, 0,
+                                           width=0,
+                                           tags=(self._name, f"{self._name}_left"),
+                                           joinstyle=tkinter.MITER,
+                                           state=state)
+                self.canvas.create_polygon(0, 0, 0, 0,
+                                           width=0,
+                                           tags=(self._name, f"{self._name}_right"),
+                                           joinstyle=tkinter.MITER,
+                                           state=state)
+                requires_recoloring = True
+
+            #points for the left half of a star centered in (0, 0)
+            left_points = ((       0      , - size * 0.500),
+                           (- size * 0.124, - size * 0.123),
+                           (- size * 0.500, - size * 0.123),
+                           (- size * 0.200, + size * 0.125),
+                           (- size * 0.317, + size * 0.500),
+                           (       0      , + size * 0.278))
+            #points for right half (horizontal flip)
+            right_points = tuple((-x, y) for x, y in left_points)
+            left_points = rototraslation(left_points, 0, x_position, y_position)
+            right_points = rototraslation(right_points, 0, x_position, y_position)
+
+            self.canvas.coords(f"{self._name}_left", *collapse_points(left_points))
+            self.canvas.coords(f"{self._name}_right", *collapse_points(right_points))
+
+        return requires_recoloring
+
+    def set_color(self, color: str, section: Literal["left", "right"] | None = None) -> None:
+        tag = self._name
+        if section is not None:
+            tag += f"_{section}"
+        if self.drawing_method == "font":
+            self.canvas.itemconfig(tag, fill=color)
+        else:
+            self.canvas.itemconfig(tag, outline=color, fill=color)
+
+
+@dataclass(frozen=True)
+class Triangle(BaseShape):
+    """ Draws a triangle at (x_position, y_position) with given size and rotation.\n
+    - angle ==  0 degrees => peak points up.\n
+    - angle == 90 degrees => peak points right. """
+
+    def update(self,
+               x_position: float | int,
+               y_position: float | int,
+               size: float | int,
+               angle: float | int) -> bool:
+        """Returns True if recoloring is necessary."""
+
+        x_position = round(x_position)
+        y_position = round(y_position)
+        size = round(size)
+        state = tkinter.DISABLED if self.events_transparent else tkinter.NORMAL
+        requires_recoloring = False
+
+        if self.drawing_method == "font":
+            if not self.canvas.find_withtag(self._name):
+                self.canvas.create_text(0, 0, text="W",
+                                        font=("CustomTkinter_shapes_font", -size),
+                                        angle=180-angle,
+                                        tags=self._name,
+                                        anchor=tkinter.CENTER,
+                                        state=state)
+                requires_recoloring = True
+
+            self.canvas.coords(self._name, x_position, y_position)
+            self.canvas.itemconfigure(self._name, font=("CustomTkinter_shapes_font", -size), angle=180-angle)
+
+        else:
+            if not self.canvas.find_withtag(self._name):
+                self.canvas.create_polygon(0, 0, 0, 0,
+                                           tags=self._name,
+                                           joinstyle=tkinter.ROUND,
+                                           state=state)
+                requires_recoloring = True
+
+            #points for a triangle centered in (0, 0) pointing up
+            radius = size / 10
+            points = ((- size / 2 + radius, + size * 0.3 - radius),
+                      (    0              , - size * 0.4 + radius),
+                      (+ size / 2 - radius, + size * 0.3 - radius))
+            points = rototraslation(points, angle, x_position, y_position)
+
+            self.canvas.coords(self._name, *collapse_points(points))
+            self.canvas.itemconfigure(self._name, width=round(radius * 2))
+
+        return requires_recoloring
+
+    def set_color(self, color: str) -> None:
+        if self.drawing_method == "font":
+            self.canvas.itemconfig(self._name, fill=color)
+        else:
+            self.canvas.itemconfig(self._name, outline=color, fill=color)

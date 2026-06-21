@@ -34,7 +34,7 @@ class CTkButtonThemedArgs(TypedDict, total=False, closed=True):
 
 class CTkButtonArgs(CTkButtonThemedArgs, total=False, closed=True):
     state: Literal["normal", "disabled"]
-    textvariable: tkinter.Variable | None
+    textvariable: tkinter.StringVar | None
     command: Callable[[], None] | None
     background_corner_colors: tuple[ColorType, ...] | None
 
@@ -44,6 +44,8 @@ class CTkButton(CTkWidget):
     Button with rounded corners, border, hover effect, image support, click command and textvariable.
     For detailed information check out the documentation.
     """
+
+    animation_duration: int = 100  #[ms], set 0 to disable it
 
     def __init__(self,
                  master: CTkContainer,
@@ -79,7 +81,7 @@ class CTkButton(CTkWidget):
         self._focus_target = self._canvas
 
         # text and font
-        self._textvariable: tkinter.Variable | None = kwargs.pop("textvariable", None)
+        self._textvariable: tkinter.StringVar | None = kwargs.pop("textvariable", None)
         self._font: CTkFont = CTkFont.from_parameter(self._theme_info["font"])
         self._font.add_size_configure_callback(self._update_font)
         self._text_label = tkinter.Label(master=self,
@@ -219,7 +221,7 @@ class CTkButton(CTkWidget):
         for anchor_char in "nsew":
             padding_weights[anchor_char] = 1000
         anchor = self._theme_info["anchor"].lower()
-        if anchor != "center":
+        if anchor != tkinter.CENTER:
             for anchor_char in anchor:
                 padding_weights[anchor_char] = 0
 
@@ -414,10 +416,11 @@ class CTkButton(CTkWidget):
 
     def _on_release(self, _: tkinter.Event) -> None:
         if self._mouse_inside and self._state == tkinter.NORMAL:
-            # click animation: change color with .on_leave() and back to normal after 100ms with click_animation()
-            self._on_leave()
-            self._click_animation_running = True
-            self.after(100, self._click_animation)
+            if self.animation_duration > 0:
+                # change color with .on_leave() and back to normal after some time with click_animation()
+                self._on_leave()
+                self._click_animation_running = True
+                self.after(self.animation_duration, self._click_animation)
             self.invoke()
 
     def invoke(self) -> None:

@@ -19,6 +19,8 @@ from .windows.widgets.core_rendering import BaseShape
 from .windows.widgets.core_rendering import BorderedRoundedRect
 from .windows.widgets.core_rendering import Checkmark
 from .windows.widgets.core_rendering import RoundedRect
+from .windows.widgets.core_rendering import Star
+from .windows.widgets.core_rendering import Triangle
 
 # import base widgets
 from .windows.widgets.core_rendering import CTkCanvas
@@ -42,8 +44,10 @@ from .windows.widgets import CTkSegmentedButton
 from .windows.widgets import CTkSlider
 from .windows.widgets import CTkSpinBox
 from .windows.widgets import CTkSwitch
+from .windows.widgets import CTkSymbolBox
 from .windows.widgets import CTkTabview
 from .windows.widgets import CTkTextbox
+from .windows.widgets import CTkToggleButton
 from .windows.widgets import CTkToolTip
 from .windows.widgets import CTkScrollableFrame
 
@@ -195,6 +199,13 @@ class _Showroom(CTk):
         self.button_4 = CTkButton(self.buttons_frame, text="Max radius", corner_radius=1000)
         self.button_5 = CTkButton(self.buttons_frame, text="With image", image=self.image)
         self.button_6 = CTkButton(self.buttons_frame, text="", image=self.image, fg_color="transparent", width=0, height=0)
+        self.togglebutton_1 = CTkToggleButton(self.buttons_frame)
+        self.togglebutton_2 = CTkToggleButton(self.buttons_frame, text_unchecked="text unchecked", text_checked="text checked")
+        self.togglebutton_2.select()
+        self.togglebutton_3 = CTkToggleButton(self.buttons_frame, image=self.image, text="With image", compound="right")
+        self.togglebutton_4 = CTkToggleButton(self.buttons_frame, image_unchecked=self.image, text_checked="text but no image", height=35)
+        self.togglebutton_5 = CTkToggleButton(self.buttons_frame, image=self.image, text="", fg_color_unchecked="transparent",
+                                              corner_radius=1000, border_width=0, width=0, height=0)
 
         self.button_1.pack(padx=20, pady=(self.SPACING, 5))
         self.button_2.pack(padx=20, pady=(0, 5))
@@ -202,6 +213,11 @@ class _Showroom(CTk):
         self.button_4.pack(padx=20, pady=(0, 5))
         self.button_5.pack(padx=20, pady=(0, 5))
         self.button_6.pack(padx=20, pady=(0, 5))
+        self.togglebutton_1.pack(padx=20, pady=(self.SPACING, 5))
+        self.togglebutton_2.pack(padx=20, pady=(0, 5))
+        self.togglebutton_3.pack(padx=20, pady=(0, 5))
+        self.togglebutton_4.pack(padx=20, pady=(0, 5))
+        self.togglebutton_5.pack(padx=20, pady=(0, 5))
 
         # choices
         self.choices_frame: CTkFrame = self.main_tabview.add("Choices")
@@ -231,10 +247,19 @@ class _Showroom(CTk):
         self.spinbox_1 = CTkSpinBox(self.optionspin_frame, width=120,
                                     values=["CTkSpinBox", "with values", "which are", "shown one", "at a time"])
         self.spinbox_1.set("CTkSpinBox")
-        self.spinbox_2 = CTkSpinBox(self.optionspin_frame, from_=1.0, to=60.0, buttonincrement=0.2, scrollincrement=1.0, format="{:.2f} s", justify="center", corner_radius=1000)
+        self.spinbox_2 = CTkSpinBox(self.optionspin_frame, from_=1.0, to=60.0, buttonincrement=0.2, scrollincrement=1.0, format="{:.2f} s", justify=CENTER, corner_radius=1000)
         self.spinbox_2.set("From-To")
         self.spinbox_3 = CTkSpinBox(self.optionspin_frame, from_=0x0, to=0xFFFF, buttonincrement=0x1, scrollincrement=0x100, format="0x{:04X}", compound="left")
         self.spinbox_3.set(0x0000)
+
+        self.symbolbox_1 = CTkSymbolBox(self.choices_frame, values=["", "+", "x", "|", "/", "-", "\\", "^", ">", "v", "<", "check", "circle", "rect", "play", "star"], width=150)
+        self.symbolbox_2 = CTkSymbolBox(self.choices_frame, text="Tri-state CheckBox", values=["", "check", "-"], width=150)
+        self.symbolbox_3 = CTkSymbolBox(self.choices_frame, text="Test result", values=["", "check", "x"], fg_color=["transparent", "green", "red"], width=150)
+        self.symbolbox_3.set("check")
+        self.symbolbox_4 = CTkSymbolBox(self.choices_frame, text="Direction", values=["^", ">", "v", "<"], width=150)
+        self.symbolbox_5 = CTkSymbolBox(self.choices_frame, text="Operation", values=["+", "-", "x", "/"], width=150)
+        self.symbolbox_6 = CTkSymbolBox(self.choices_frame, text="Button-like", values=["star"], corner_radius=1000, width=150)
+        self.symbolbox_7 = CTkSymbolBox(self.choices_frame, text="Audio trace", values=["circle", "rect", "play", "rect"], fg_color=["red", "red", "green", "green"], width=150)
 
         self.seg_button_1 = CTkSegmentedButton(self.choices_frame, values=["CTkSegmentedButton", "Value 2", "Value 3"])
         self.seg_button_1.set("CTkSegmentedButton")
@@ -256,6 +281,13 @@ class _Showroom(CTk):
         self.spinbox_1.pack(padx=20, pady=(self.SPACING, 5))
         self.spinbox_2.pack(padx=20, pady=(0, 5))
         self.spinbox_3.pack(padx=20, pady=(0, 5))
+        self.symbolbox_1.pack(padx=20, pady=(self.SPACING, 5))
+        self.symbolbox_2.pack(padx=20, pady=(0, 5))
+        self.symbolbox_3.pack(padx=20, pady=(0, 5))
+        self.symbolbox_4.pack(padx=20, pady=(0, 5))
+        self.symbolbox_5.pack(padx=20, pady=(0, 5))
+        self.symbolbox_6.pack(padx=20, pady=(0, 5))
+        self.symbolbox_7.pack(padx=20, pady=(0, 5))
         self.seg_button_1.pack(padx=20, pady=(self.SPACING, 5))
         self.seg_button_2.pack(padx=20, pady=(0, 5))
 
@@ -265,7 +297,7 @@ class _Showroom(CTk):
         self.label_2 = CTkLabel(self.text_frame, text="with border", border_width=2, corner_radius=6)
         self.label_3 = CTkLabel(self.text_frame, text="with image", image=self.image, compound="right")
         self.entry_1 = CTkEntry(self.text_frame, placeholder_text="CTkEntry")
-        self.entry_2 = CTkEntry(self.text_frame, placeholder_text="Password", show="*", justify="center", corner_radius=1000)
+        self.entry_2 = CTkEntry(self.text_frame, placeholder_text="Password", show="*", justify=CENTER, corner_radius=1000)
         self.textboxes_frame = CTkFrame(self.text_frame, fg_color="transparent")
         self.textbox_1 = CTkTextbox(self.textboxes_frame, width=300)
         self.textbox_1.insert("0.0", "CTkTextbox\n\n" + "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.\n\n" * 20)
@@ -288,13 +320,12 @@ class _Showroom(CTk):
         self.radio_button_2 = CTkRadioButton(self.boolean_frame, variable=self.radio_var, value=1, text="Fixed settings", hover=False, border_width_checked=8, border_width_unchecked=6, width=130)
         self.radio_button_3 = CTkRadioButton(self.boolean_frame, variable=self.radio_var, value=2, state="disabled", text="disabled", width=130)
         self.radio_button_4 = CTkRadioButton(self.boolean_frame, variable=self.radio_var, value=3, compound="top", text="compound top", internal_spacing=0, width=130)
-        self.checkbox_var = BooleanVar(value=True)
-        self.checkbox_1 = CTkCheckBox(self.boolean_frame, variable=self.checkbox_var, width=130)
+        self.checkswitch_var = BooleanVar(value=True)
+        self.checkbox_1 = CTkCheckBox(self.boolean_frame, variable=self.checkswitch_var, width=130)
         self.checkbox_2 = CTkCheckBox(self.boolean_frame, state="disabled", text="disabled ON", width=130)
         self.checkbox_2.select()
         self.checkbox_3 = CTkCheckBox(self.boolean_frame, state="disabled", text="disabled OFF", width=130)
-        self.switch_var = BooleanVar(value=True)
-        self.switch_1 = CTkSwitch(self.boolean_frame, variable=self.switch_var, width=130)
+        self.switch_1 = CTkSwitch(self.boolean_frame, variable=self.checkswitch_var, width=130)
         self.switch_2 = CTkSwitch(self.boolean_frame, border_width=-3, text="negative border", width=130)
         self.switch_3 = CTkSwitch(self.boolean_frame, orientation="vertical", text="vertical", corner_radius=5, button_length=2, border_width=0)
         self.switch_4 = CTkSwitch(self.boolean_frame, text="Fixed settings", hover=False, compound="bottom", corner_radius=0, button_length=5, border_width=5, thickness=30, internal_spacing=0, width=130)
@@ -475,12 +506,14 @@ class _Showroom(CTk):
             self.progressbar_ontt.set(0.0, "Move the mouse")
         return ""
 
-    def _change_theme(self, new_theme: str) -> None:
+    def _change_theme(self, new_theme: str) -> str:
         set_default_color_theme(new_theme)
         self.new_instance_requested = True
         self.destroy()
+        return "break"
 
-    def _change_drawing(self, new_drawing_method: str) -> None:
+    def _change_drawing(self, new_drawing_method: str) -> str:
         BaseShape.preferred_drawing_method = new_drawing_method
         self.new_instance_requested = True
         self.destroy()
+        return "break"

@@ -4,14 +4,14 @@ import sys
 import os
 import pathlib
 import json
-from typing import Any, Tuple, Union
+from typing import Any, Union
 from typing_extensions import Literal, TypeAlias, TypedDict, Unpack
 
 from ..utility import deep_update
 
 
 #old syntax for retrocompatibility reasons
-ColorType: TypeAlias = Union[Literal["transparent"], str, Tuple[str, str]]
+ColorType: TypeAlias = Union[Literal["transparent"], str, tuple[str, str], list[str]]
 TransparentColorType: TypeAlias = Union[Literal["transparent"], ColorType]
 AnchorType : TypeAlias = Literal["center", "n", "ne", "e", "se", "s", "sw", "w", "nw"]
 
@@ -22,10 +22,8 @@ class ThemeInfo(TypedDict, total=False, extra_items=Any):
     length: int
     width: int
     height: int
-    checkbox_width: int
-    checkbox_height: int
-    radiobutton_width: int
-    radiobutton_height: int
+    box_width: int
+    box_height: int
     corner_radius: int
     button_length: int
     border_width: int
@@ -39,7 +37,7 @@ class ThemeInfo(TypedDict, total=False, extra_items=Any):
     fg_color_unchecked: ColorType
     top_fg_color: ColorType
     border_color: TransparentColorType
-    checkmark_color: ColorType
+    symbol_color: ColorType
     button_color: ColorType
     button_hover_color: ColorType
     progress_color: TransparentColorType
@@ -58,6 +56,8 @@ class ThemeInfo(TypedDict, total=False, extra_items=Any):
     placeholder_text: str
     title: str
     text: str
+    text_checked: str
+    text_unchecked: str
     font: Any
     family: str
     size: int
@@ -66,6 +66,8 @@ class ThemeInfo(TypedDict, total=False, extra_items=Any):
     underline: bool
     overstrike: bool
     image: Any
+    image_checked: Any
+    image_unchecked: Any
     light_image: Any
     dark_image: Any
     anchor: AnchorType

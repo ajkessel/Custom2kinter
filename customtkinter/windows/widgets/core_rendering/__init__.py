@@ -8,6 +8,8 @@ from .draw_engine import BaseShape
 from .draw_engine import BorderedRoundedRect
 from .draw_engine import Checkmark
 from .draw_engine import RoundedRect
+from .draw_engine import Star
+from .draw_engine import Triangle
 
 from .draw_engine import DrawingMethodType
 from .draw_engine import SectionType

@@ -26,7 +26,7 @@ class CTkTabviewThemedArgs(TypedDict, total=False, closed=True):
 
 class CTkTabviewArgs(CTkTabviewThemedArgs, total=False, closed=True):
     state: Literal["normal", "disabled"]
-    command: Callable[[str], None] | None
+    command: Callable[[str], Literal["break"] | None] | None
 
 
 class CTkTabview(CTkWidget, CTkContainer):
@@ -68,7 +68,7 @@ class CTkTabview(CTkWidget, CTkContainer):
             self._fg_color = self._theme_info["top_fg_color"]
 
         #functionality
-        self._command: Callable[[str], None] | None = kwargs.pop("command", None)
+        self._command: Callable[[str], Literal["break"] | None] | None = kwargs.pop("command", None)
         self._tab_dict: dict[str, CTkFrame] = {}
         self._name_list: list[str] = []  # list of unique tab names in order of tabs
         self._current_name: str = ""
@@ -94,10 +94,13 @@ class CTkTabview(CTkWidget, CTkContainer):
         self._update_geometry()
         self._draw(force_colors_update=True)
 
-    def _segmented_button_callback(self, selected_name: str) -> None:
-        self.set(selected_name)
-        if self._command is not None:
-            self._command(selected_name)
+    def _segmented_button_callback(self, selected_name: str) -> str:
+        retval = "" if self._command is None else self._command(selected_name)
+
+        #if _command() returns exactly "break", operation is stopped
+        if retval != "break":
+            self.set(selected_name)
+        return retval
 
     def winfo_children(self) -> list[tkinter.Widget]:
         """

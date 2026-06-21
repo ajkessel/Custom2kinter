@@ -174,8 +174,7 @@ class CTkSlider(CTkWidget, CTkScrollable):
         super().destroy()
 
     def _set_cursor(self) -> None:
-        cursor = get_proper_cursor("normal" if self._state != tkinter.NORMAL else "clickable")
-        if cursor is not None:
+        if cursor := get_proper_cursor("normal" if self._state != tkinter.NORMAL else "clickable"):
             self.configure(cursor=cursor)
 
     def _draw(self, force_colors_update: bool = False) -> None:

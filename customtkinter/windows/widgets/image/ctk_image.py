@@ -148,6 +148,9 @@ class CTkImage:
                 self._scaled_photo_images[key] = image
         return image
 
+    def __bool__(self) -> bool:
+        return self._theme_info["light_image"] is not None or self._theme_info["dark_image"] is not None
+
     def _convert_image(self, image: Image.Image | Path | str | None) -> Image.Image | None:
         if image is None or image == "":
             return None

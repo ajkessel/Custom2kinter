@@ -13,7 +13,9 @@ from .ctk_segmented_button import CTkSegmentedButton
 from .ctk_slider import CTkSlider
 from .ctk_spinbox import CTkSpinBox
 from .ctk_switch import CTkSwitch
+from .ctk_symbolbox import CTkSymbolBox
 from .ctk_tabview import CTkTabview
 from .ctk_textbox import CTkTextbox
+from .ctk_togglebutton import CTkToggleButton
 from .ctk_tooltip import CTkToolTip
 from .ctk_scrollable_frame import CTkScrollableFrame

@@ -83,7 +83,7 @@ class CTkLabel(CTkWidget):
                                  highlightthickness=0,
                                  width=self._apply_scaling(self._desired_width),
                                  height=self._apply_scaling(self._desired_height))
-        self._canvas.grid(row=0, column=0, sticky="nswe")
+        self._canvas.grid(row=0, column=0, sticky="nsew")
         self._rounded_rect = BorderedRoundedRect(self._canvas)
         self._bind_targets.append(self._canvas)
 
@@ -137,7 +137,7 @@ class CTkLabel(CTkWidget):
         # Workaround to force grid to be resized when text changes size.
         # Otherwise grid will lag and only resizes if other mouse action occurs.
         self._canvas.grid_forget()
-        self._canvas.grid(row=0, column=0, sticky="nswe")
+        self._canvas.grid(row=0, column=0, sticky="nsew")
 
     def _update_image(self) -> None:
         image = self._image.get(self.get_scaling(), self._get_appearance_mode())
@@ -170,7 +170,7 @@ class CTkLabel(CTkWidget):
                                   bg=fg_color)
 
     def _update_geometry(self) -> None:
-        sticky = self._theme_info["anchor"] if self._theme_info["anchor"] != "center" else ""
+        sticky = self._theme_info["anchor"] if self._theme_info["anchor"] != tkinter.CENTER else ""
         spacing = self._rounded_rect.info.get("inscribed_spacing", 0) + self._apply_scaling(self._theme_info["border_spacing"])
         self._label.grid(row=0, column=0, sticky=sticky, padx=spacing, pady=spacing)
 

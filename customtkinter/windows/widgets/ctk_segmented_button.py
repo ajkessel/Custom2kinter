@@ -34,7 +34,7 @@ class CTkSegmentedButtonArgs(CTkSegmentedButtonThemedArgs, total=False, closed=T
     state: Literal["normal", "disabled"]
     values: list[str] | None
     variable: tkinter.StringVar | None
-    command: Callable[[str], None] | None
+    command: Callable[[str], Literal["break"] | None] | None
     background_corner_colors: tuple[ColorType, ...] | None
 
 
@@ -70,7 +70,7 @@ class CTkSegmentedButton(CTkFrame):
 
         #functionality
         self._state: Literal["normal", "disabled"] = kwargs.pop("state", tkinter.NORMAL)
-        self._command: Callable[[str], None] | None = kwargs.pop("command", None)
+        self._command: Callable[[str], Literal["break"] | None] | None = kwargs.pop("command", None)
         self._values: list[str] = kwargs.pop("values", [])
         self._variable: tkinter.StringVar | None = kwargs.pop("variable", None)
         self._variable_callback_name: str | None = None
@@ -181,7 +181,7 @@ class CTkSegmentedButton(CTkFrame):
                                text=value,
                                font=self._theme_sb_info["font"],
                                state=self._state,
-                               command=lambda v=value: self.set(v, from_button_callback=True))
+                               command=lambda v=value: self.invoke(v))
         return new_button
 
     def _create_buttons_from_values(self) -> None:
@@ -335,18 +335,23 @@ class CTkSegmentedButton(CTkFrame):
         else:
             return super().cget(attribute_name)
 
-    def set(self, value: str, from_button_callback: bool = False) -> None:
+    def set(self, value: str) -> None:
         """ Changes the selected value to the desired one, regardless of the widget's state and admissible values. """
+        self._select_button_by_value(value)
+
+        if self._variable is not None and not self._block_value_propagation.locked():
+            with self._block_value_propagation:
+                self._variable.set(value)
+
+    def invoke(self, value: str) -> None:
+        """ Changes the active button following the provided value.\n
+        Can be called to simulate the user who clicks on a specific button. """
         if value != self._current_value:
-            self._select_button_by_value(value)
+            retval = "" if self._command is None else self._command(value)
 
-            if self._variable is not None and not self._block_value_propagation.locked():
-                with self._block_value_propagation:
-                    self._variable.set(value)
-
-            if from_button_callback:
-                if self._command is not None:
-                    self._command(self._current_value)
+            #if _command() returns exactly "break", operation is stopped
+            if retval != "break":
+                self.set(value)
 
     def get(self, index: int | None = None) -> str:
         """ Returns the current value.\n

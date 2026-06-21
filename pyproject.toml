@@ -30,6 +30,7 @@ dependencies = [
    "darkdetect",
    "typing_extensions",
    "packaging",
+   "pillow",
 ]
 keywords = ["GUI", "Tkinter", "simple", "modern"]
 license = "MIT"

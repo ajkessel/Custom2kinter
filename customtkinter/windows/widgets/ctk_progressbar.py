@@ -94,7 +94,7 @@ class CTkProgressBar(CTkWidget):
         self._progress_bar = RoundedRect(self._canvas)
         self._text_id = self._canvas.create_text(0, 0,
                                                  text="",
-                                                 anchor="center",
+                                                 anchor=tkinter.CENTER,
                                                  font=self._apply_font_scaling(self._font))
         self._bind_targets.append(self._canvas)
         self._focus_target = self._canvas

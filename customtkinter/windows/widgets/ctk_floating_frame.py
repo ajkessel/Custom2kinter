@@ -113,7 +113,7 @@ class CTkFloatingFrame(CTkFrame):
         width = self.winfo_reqwidth()
         height = self.winfo_reqheight()
 
-        if anchor == "center":
+        if anchor == tkinter.CENTER:
             anchor = ""
 
         if   "w" in anchor: x_delta = 0

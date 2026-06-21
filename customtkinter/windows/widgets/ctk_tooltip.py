@@ -210,7 +210,7 @@ class CTkToolTip(CTkFloatingFrame):
         """ Shows the widget immediately or updates the position if already visible. """
         retval = "" if self._command is None else self._command()
 
-        #if _command() returns exactly "break", tooltip is not shown
+        #if _command() returns exactly "break", operation is stopped
         if retval != "break":
             title_str = self._get_string(self._title)
             text_str = self._get_string(self._text)
