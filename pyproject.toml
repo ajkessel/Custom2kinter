@@ -36,6 +36,23 @@ keywords = ["GUI", "Tkinter", "simple", "modern"]
 license = "MIT"
 license-files = ["LICEN[CS]E*"]
 
+[project.optional-dependencies]
+test = [
+   "pytest>=7.0",
+   "pytest-xvfb",
+   "mss",
+   "pillow",
+   "pixelmatch",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["test/unit", "test/behavioral", "test/visual"]
+markers = [
+   "visual: visual/screenshot tests (slow, need a display)",
+   "selfhosted: needs real hardware (multi-monitor, real DPI, macOS Tk9)",
+   "slow: long-running tests",
+]
+
 [project.urls]
 Homepage = "https://github.com/FedericoSpada/Custom2kinter"
 Changelog = "https://github.com/FedericoSpada/Custom2kinter/blob/master/CHANGELOG.md"

@@ -1,0 +1,46 @@
+name: tests
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / py${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.9", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Linux runners are headless: install Xvfb so pytest-xvfb can provide a
+      # virtual display. Windows/macOS runners have a real display.
+      - name: Install Xvfb (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+
+      - name: Install package + test deps
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[test]"
+
+      - name: Report Tcl/Tk version
+        run: python -c "import tkinter; print('Tk', tkinter.TkVersion, 'Tcl', tkinter.TclVersion)"
+
+      # pytest-xvfb auto-starts a virtual display on Linux; no-op elsewhere.
+      - name: Run unit + behavioral tests
+        run: python -m pytest test/unit test/behavioral -v
