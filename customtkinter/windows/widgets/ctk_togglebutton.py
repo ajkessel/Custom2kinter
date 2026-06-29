@@ -28,7 +28,8 @@ class CTkToggleButtonArgs(CTkToggleButtonThemedArgs, total=False, closed=True):
     offvalue: int | float | str | bool
     textvariable: tkinter.StringVar | None
     variable: tkinter.Variable | None
-    command: Callable[[int | float | str | bool], Literal["break"] | None] | None
+    pre_command: Callable[[int | float | str | bool], Literal["break"] | None] | None
+    command: Callable[[int | float | str | bool], None] | None
     background_corner_colors: tuple[ColorType, ...] | None
 
 
@@ -72,9 +73,12 @@ class CTkToggleButton(CTkButton, CTkToggleable):
 
         # functionality
         self._state = kwargs.pop("state", tkinter.NORMAL)
+        self._pre_command = kwargs.pop("pre_command", None)
         self._command = kwargs.pop("command", None)
-        self._onvalue = kwargs.pop("onvalue", 1)
-        self._offvalue = kwargs.pop("offvalue", 0)
+        if "onvalue" in kwargs:
+            self._onvalue = kwargs.pop("onvalue")
+        if "offvalue" in kwargs:
+            self._offvalue = kwargs.pop("offvalue")
 
         if "variable" in kwargs:
             self._update_variable(kwargs.pop("variable"))
@@ -147,6 +151,9 @@ class CTkToggleButton(CTkButton, CTkToggleable):
             self._update_variable(kwargs.pop("variable"))
             require_new_state = False  #already changed in _update_variable()
 
+        if "pre_command" in kwargs:
+            self._pre_command = kwargs.pop("pre_command")
+
         if "command" in kwargs:
             self._command = kwargs.pop("command")
 
@@ -170,13 +177,15 @@ class CTkToggleButton(CTkButton, CTkToggleable):
             return self._offvalue
         elif attribute_name == "variable":
             return self._variable
+        elif attribute_name == "pre_command":
+            return self._pre_command
         elif attribute_name == "command":
             return self._command
         else:
             return super().cget(attribute_name)
 
-    def set(self, state: bool) -> None:
-        super().set(state)
+    def set(self, value: int | float | str | bool | None = None, state: bool | None = None) -> None:
+        super().set(value, state)
         super().configure(**self._get_conditional_arguments())
 
     def invoke(self, _: tkinter.Event | None = None) -> None:

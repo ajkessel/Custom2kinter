@@ -41,7 +41,8 @@ class CTkSpinBoxArgs(CTkSpinBoxThemedArgs, ValidTkEntryArgs, total=False, closed
     buttonincrement: int | float
     scrollincrement: int | float
     variable: tkinter.IntVar | tkinter.DoubleVar | tkinter.StringVar | None
-    command: Callable[[int | float | str], Literal["break"] | None] | None
+    pre_command: Callable[[int | float | str], Literal["break"] | None] | None
+    command: Callable[[int | float | str], None] | None
 
 
 class CTkSpinBox(CTkWidget, CTkScrollable, EntryLike):
@@ -86,7 +87,8 @@ class CTkSpinBox(CTkWidget, CTkScrollable, EntryLike):
         self._values: list[int | float | str] | None = kwargs.pop("values", None)
         self._buttonincrement: int | float
         self._scrollincrement: int | float
-        self._command: Callable[[int | float | str], Literal["break"] | None] | None = kwargs.pop("command", None)
+        self._pre_command: Callable[[int | float | str], Literal["break"] | None] | None = kwargs.pop("pre_command", None)
+        self._command: Callable[[int | float | str], None] | None = kwargs.pop("command", None)
         self._variable: tkinter.IntVar | tkinter.DoubleVar | tkinter.StringVar | None = kwargs.pop("variable", None)
         self._support_variable: tkinter.StringVar | None = None
         self._variable_callback_name: str | None = None
@@ -355,6 +357,9 @@ class CTkSpinBox(CTkWidget, CTkScrollable, EntryLike):
             self._variable = kwargs.pop("variable")
             self._update_variable()
 
+        if "pre_command" in kwargs:
+            self._pre_command = kwargs.pop("pre_command")
+
         if "command" in kwargs:
             self._command = kwargs.pop("command")
 
@@ -380,6 +385,8 @@ class CTkSpinBox(CTkWidget, CTkScrollable, EntryLike):
             return self._scrollincrement
         elif attribute_name == "variable":
             return self._variable
+        elif attribute_name == "pre_command":
+            return self._pre_command
         elif attribute_name == "command":
             return self._command
         elif attribute_name in self._theme_info:
@@ -518,11 +525,14 @@ class CTkSpinBox(CTkWidget, CTkScrollable, EntryLike):
                 if self._to is not None and new_value > self._to:
                     new_value = self._to
 
-            retval = "" if self._command is None else self._command(new_value)
+            retval = "" if self._pre_command is None else self._pre_command(new_value)
 
-            #if _command() returns exactly "break", operation is stopped
+            #if _pre_command() returns exactly "break", operation is stopped
             if retval != "break":
                 self.set(new_value)
+
+                if self._command is not None:
+                    self._command(new_value)
 
     def _update_variable(self) -> None:
         if self._variable is None:

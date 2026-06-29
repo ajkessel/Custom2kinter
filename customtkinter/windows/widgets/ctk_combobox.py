@@ -41,7 +41,8 @@ class CTkComboBoxArgs(CTkComboBoxThemedArgs, ValidTkEntryArgs, total=False, clos
     values: list[str]
     separator: str  #used only in "toggle" mode
     variable: tkinter.StringVar | None
-    command: Callable[[str], Literal["break"] | None] | None
+    pre_command: Callable[[str], Literal["break"] | None] | None
+    command: Callable[[str], None] | None
 
 
 class CTkComboBox(CTkWidget, EntryLike):
@@ -85,7 +86,8 @@ class CTkComboBox(CTkWidget, EntryLike):
         self._values: list[str] = kwargs.pop("values", [])
         self._separator: str = kwargs.pop("separator", " ")
         self._type: str = self._values[0] if self._mode == "type" and self._values else ""
-        self._command: Callable[[str], Literal["break"] | None] | None = kwargs.pop("command", None)
+        self._pre_command: Callable[[str], Literal["break"] | None] | None = kwargs.pop("pre_command", None)
+        self._command: Callable[[str], None] | None = kwargs.pop("command", None)
         self._variable: tkinter.StringVar | None = kwargs.pop("variable", None)
         self._applied_button_width: int = -1
         self._close_on_next_click: bool = False
@@ -340,6 +342,9 @@ class CTkComboBox(CTkWidget, EntryLike):
             self._deactivate_placeholder()
             self._activate_placeholder()
 
+        if "pre_command" in kwargs:
+            self._pre_command = kwargs.pop("pre_command")
+
         if "command" in kwargs:
             self._command = kwargs.pop("command")
 
@@ -362,6 +367,8 @@ class CTkComboBox(CTkWidget, EntryLike):
             return self._separator
         elif attribute_name == "variable":
             return self._variable
+        elif attribute_name == "pre_command":
+            return self._pre_command
         elif attribute_name == "command":
             return self._command
         elif attribute_name in self._theme_info:
@@ -420,10 +427,9 @@ class CTkComboBox(CTkWidget, EntryLike):
         self._rounded_rect.set_border_color(color, self._theme_info["compound"])
 
     def _dropdown_callback(self, value: str) -> None:
-        #in command mode, just invoke the function
-        retval = "" if self._command is None else self._command(value)
+        retval = "" if self._pre_command is None else self._pre_command(value)
 
-        #if _command() returns exactly "break", operation is stopped
+        #if _pre_command() returns exactly "break", operation is stopped
         if retval != "break":
             if self._mode == "replace":
                 self.set(value)
@@ -441,6 +447,10 @@ class CTkComboBox(CTkWidget, EntryLike):
                 self._type = value
                 if self._placeholder_text_active:
                     self._set_regardless(value)
+
+            #in command mode, just invoke the function
+            if self._command is not None:
+                self._command(value)
 
         #in toggle mode, re-open the menu to allow the user
         # to click multiple values consecutively

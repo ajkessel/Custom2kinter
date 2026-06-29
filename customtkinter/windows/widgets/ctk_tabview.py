@@ -26,7 +26,8 @@ class CTkTabviewThemedArgs(TypedDict, total=False, closed=True):
 
 class CTkTabviewArgs(CTkTabviewThemedArgs, total=False, closed=True):
     state: Literal["normal", "disabled"]
-    command: Callable[[str], Literal["break"] | None] | None
+    pre_command: Callable[[str], Literal["break"] | None] | None
+    command: Callable[[str], None] | None
 
 
 class CTkTabview(CTkWidget, CTkContainer):
@@ -68,7 +69,8 @@ class CTkTabview(CTkWidget, CTkContainer):
             self._fg_color = self._theme_info["top_fg_color"]
 
         #functionality
-        self._command: Callable[[str], Literal["break"] | None] | None = kwargs.pop("command", None)
+        self._pre_command: Callable[[str], Literal["break"] | None] | None = kwargs.pop("pre_command", None)
+        self._command: Callable[[str], None] | None = kwargs.pop("command", None)
         self._tab_dict: dict[str, CTkFrame] = {}
         self._name_list: list[str] = []  # list of unique tab names in order of tabs
         self._current_name: str = ""
@@ -95,11 +97,14 @@ class CTkTabview(CTkWidget, CTkContainer):
         self._draw(force_colors_update=True)
 
     def _segmented_button_callback(self, selected_name: str) -> str:
-        retval = "" if self._command is None else self._command(selected_name)
+        retval = "" if self._pre_command is None else self._pre_command(selected_name)
 
-        #if _command() returns exactly "break", operation is stopped
+        #if _pre_command() returns exactly "break", operation is stopped
         if retval != "break":
             self.set(selected_name)
+
+            if self._command is not None:
+                self._command(selected_name)
         return retval
 
     def winfo_children(self) -> list[tkinter.Widget]:
@@ -228,6 +233,9 @@ class CTkTabview(CTkWidget, CTkContainer):
             self._theme_info["border_color"] = self._check_color_type(kwargs.pop("border_color"))
             require_redraw = True
 
+        if "pre_command" in kwargs:
+            self._pre_command = kwargs.pop("pre_command")
+
         if "command" in kwargs:
             self._command = kwargs.pop("command")
 
@@ -251,6 +259,8 @@ class CTkTabview(CTkWidget, CTkContainer):
     def cget(self, attribute_name: str) -> Any:
         if attribute_name == "state":
             return self._segmented_button.cget(attribute_name)
+        elif attribute_name == "pre_command":
+            return self._pre_command
         elif attribute_name == "command":
             return self._command
         elif attribute_name in self._theme_info:

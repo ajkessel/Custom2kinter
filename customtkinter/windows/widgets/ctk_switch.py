@@ -40,7 +40,8 @@ class CTkSwitchArgs(CTkSwitchThemedArgs, total=False, closed=True):
     offvalue: int | float | str | bool
     textvariable: tkinter.StringVar | None
     variable: tkinter.Variable | None
-    command: Callable[[int | float | str | bool], Literal["break"] | None] | None
+    pre_command: Callable[[int | float | str | bool], Literal["break"] | None] | None
+    command: Callable[[int | float | str | bool], None] | None
 
 
 class CTkSwitch(CTkWidget, CTkToggleable, CanvasWithLabel):
@@ -77,9 +78,12 @@ class CTkSwitch(CTkWidget, CTkToggleable, CanvasWithLabel):
 
         # functionality
         self._state = kwargs.pop("state", tkinter.NORMAL)
+        self._pre_command = kwargs.pop("pre_command", None)
         self._command = kwargs.pop("command", None)
-        self._onvalue = kwargs.pop("onvalue", 1)
-        self._offvalue = kwargs.pop("offvalue", 0)
+        if "onvalue" in kwargs:
+            self._onvalue = kwargs.pop("onvalue")
+        if "offvalue" in kwargs:
+            self._offvalue = kwargs.pop("offvalue")
 
         width, height = get_width_height_from_orientation(self._theme_info["orientation"],
                                                           self._theme_info["thickness"],
@@ -331,6 +335,9 @@ class CTkSwitch(CTkWidget, CTkToggleable, CanvasWithLabel):
         if "hover" in kwargs:
             self._theme_info["hover"] = kwargs.pop("hover")
 
+        if "pre_command" in kwargs:
+            self._pre_command = kwargs.pop("pre_command")
+
         if "command" in kwargs:
             self._command = kwargs.pop("command")
 
@@ -359,6 +366,8 @@ class CTkSwitch(CTkWidget, CTkToggleable, CanvasWithLabel):
             return self._offvalue
         elif attribute_name == "variable":
             return self._variable
+        elif attribute_name == "pre_command":
+            return self._pre_command
         elif attribute_name == "command":
             return self._command
         elif attribute_name in self._theme_info:
@@ -366,6 +375,6 @@ class CTkSwitch(CTkWidget, CTkToggleable, CanvasWithLabel):
         else:
             return super().cget(attribute_name)
 
-    def set(self, state: bool) -> None:
-        super().set(state)
+    def set(self, value: int | float | str | bool | None = None, state: bool | None = None) -> None:
+        super().set(value, state)
         self._draw(force_colors_update=True)
