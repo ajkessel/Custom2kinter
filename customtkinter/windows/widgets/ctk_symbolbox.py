@@ -42,7 +42,8 @@ class CTkSymbolBoxArgs(CTkSymbolBoxThemedArgs, total=False, closed=True):
     values: list[SymbolType]
     textvariable: tkinter.StringVar | None
     variable: tkinter.StringVar | None
-    command: Callable[[int], Literal["break"] | None] | None
+    pre_command: Callable[[int], Literal["break"] | None] | None
+    command: Callable[[int], None] | None
 
 
 class CTkSymbolBox(CTkWidget, CanvasWithLabel):
@@ -91,7 +92,8 @@ class CTkSymbolBox(CTkWidget, CanvasWithLabel):
 
         # functionality
         self._state: Literal["normal", "disabled"] = kwargs.pop("state", tkinter.NORMAL)
-        self._command: Callable[[int], Literal["break"] | None] | None = kwargs.pop("command", None)
+        self._pre_command: Callable[[int], Literal["break"] | None] | None = kwargs.pop("pre_command", None)
+        self._command: Callable[[int], None] | None = kwargs.pop("command", None)
         self._variable: tkinter.Variable | None = kwargs.pop("variable", None)
         self._variable_callback_name: str | None = None
         self._block_value_propagation: Lock = Lock()
@@ -470,6 +472,9 @@ class CTkSymbolBox(CTkWidget, CanvasWithLabel):
                 self._variable_callback_name = self._variable.trace_add("write", self._variable_callback)
                 self._variable_callback()
 
+        if "pre_command" in kwargs:
+            self._pre_command = kwargs.pop("pre_command")
+
         if "command" in kwargs:
             self._command = kwargs.pop("command")
 
@@ -488,6 +493,8 @@ class CTkSymbolBox(CTkWidget, CanvasWithLabel):
             return self._textvariable
         elif attribute_name == "variable":
             return self._variable
+        elif attribute_name == "pre_command":
+            return self._pre_command
         elif attribute_name == "command":
             return self._command
         elif attribute_name in self._theme_info:
@@ -524,11 +531,14 @@ class CTkSymbolBox(CTkWidget, CanvasWithLabel):
             else:
                 new_index = max(0, min(new_index, len(self._values) - 1))
 
-            retval = "" if self._command is None else self._command(new_index)
+            retval = "" if self._pre_command is None else self._pre_command(new_index)
 
-            #if _command() returns exactly "break", operation is stopped
+            #if _pre_command() returns exactly "break", operation is stopped
             if retval != "break":
                 self.set(index=new_index)
+
+                if self._command is not None:
+                    self._command(new_index)
 
     def get(self, index: int | None = None) -> SymbolType:
         """ Returns the current selected symbol.\n

@@ -72,6 +72,18 @@ radiobutton_3 = customtkinter.CTkRadioButton(master=frame,
                                              text="Parameters settings")
 radiobutton_3.pack(pady=10, padx=10)
 
+#You can also add (both in JSON and programmatically) a custom_key containing miscellaneous values
+# that you can then retrieve directly using ThemeManager.get_info() and use as you prefer.
+customtkinter.ThemeManager.add_key("various_values",
+                                   highlight_color="yellow",
+                                   number_of_buttons=3,
+                                   prefix="0x")
+
+values = customtkinter.ThemeManager.get_info("various_values")
+print(f"{values['highlight_color']=}")
+print(f"{values['number_of_buttons']=}")
+print(f"{values['prefix']=}")
+
 #You can easily generate a JSON file with the current settings by calling ThemeManager.save_theme(),
 # so that you can restore it later.
 if False:

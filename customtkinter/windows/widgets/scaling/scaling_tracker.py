@@ -24,14 +24,20 @@ class ScalingTracker:
     _update_loop_running: bool = False
 
     @classmethod
-    def get_widget_scaling(cls, widget: tkinter.Widget) -> float:
-        window_root = get_window_root_of_widget(widget)
-        return cls._window_dpi_scaling_dict[window_root] * cls._widget_scaling
+    def get_widget_scaling(cls, widget: tkinter.Widget | None = None) -> float:
+        if widget is not None:
+            scaling = cls._window_dpi_scaling_dict[get_window_root_of_widget(widget)]
+        else:
+            scaling = 1.0
+        return scaling * cls._widget_scaling
 
     @classmethod
-    def get_window_scaling(cls, window: tkinter.Tk | tkinter.Toplevel) -> float:
-        window_root = get_window_root_of_widget(window)
-        return cls._window_dpi_scaling_dict[window_root] * cls._window_scaling
+    def get_window_scaling(cls, window: tkinter.Tk | tkinter.Toplevel | None = None) -> float:
+        if window is not None:
+            scaling = cls._window_dpi_scaling_dict[get_window_root_of_widget(window)]
+        else:
+            scaling = 1.0
+        return scaling * cls._window_scaling
 
     @classmethod
     def set_widget_scaling(cls, widget_scaling_factor: float) -> None:

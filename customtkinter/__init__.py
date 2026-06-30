@@ -159,7 +159,7 @@ class _Showroom(CTk):
                                           button_color=self.theme_optionmenu.cget("button_color"),
                                           button_hover_color=self.theme_optionmenu.cget("button_hover_color"),
                                           text_color=self.theme_optionmenu.cget("text_color"))
-        self.scaling_spinbox.set(ScalingTracker._widget_scaling)
+        self.scaling_spinbox.set(ScalingTracker.get_widget_scaling())
         self.drawing_label = CTkLabel(self.sidebar_frame, text="Drawing method:", anchor="w")
         self.drawing_optionmenu = CTkOptionMenu(self.sidebar_frame, values=DRAWING_METHODS,
                                                 command=self._change_drawing)
@@ -506,14 +506,12 @@ class _Showroom(CTk):
             self.progressbar_ontt.set(0.0, "Move the mouse")
         return ""
 
-    def _change_theme(self, new_theme: str) -> str:
+    def _change_theme(self, new_theme: str) -> None:
         set_default_color_theme(new_theme)
         self.new_instance_requested = True
         self.destroy()
-        return "break"
 
-    def _change_drawing(self, new_drawing_method: str) -> str:
+    def _change_drawing(self, new_drawing_method: str) -> None:
         BaseShape.preferred_drawing_method = new_drawing_method
         self.new_instance_requested = True
         self.destroy()
-        return "break"

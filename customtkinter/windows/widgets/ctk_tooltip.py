@@ -25,7 +25,8 @@ class CTkToolTipArgs(CTkToolTipThemedArgs, total=False, closed=True):
     mode: Literal["master", "mouse", "live_mouse"]
     state: Literal["normal", "disabled"]
     close_on_interaction: bool
-    command: Callable[[], Literal["break"] | None] | None
+    pre_command: Callable[[], Literal["break"] | None] | None
+    command: Callable[[], None] | None
     title: str | Callable[[], str] | None
     text: str | Iterable[str] | Callable[[], str | Iterable[str]] | None
 
@@ -67,7 +68,8 @@ class CTkToolTip(CTkFloatingFrame):
         self._mode: Literal["master", "mouse", "live_mouse"] = kwargs.pop("mode", "master")
         self._state: Literal["normal", "disabled"] = kwargs.pop("state", tkinter.NORMAL)
         self._close_on_interaction: bool = kwargs.pop("close_on_interaction", True)
-        self._command: Callable[[], Literal["break"] | None] | None = kwargs.pop("command", None)
+        self._pre_command: Callable[[], Literal["break"] | None] | None = kwargs.pop("pre_command", None)
+        self._command: Callable[[], None] | None = kwargs.pop("command", None)
         self._title: str | Callable[[], str] | None = kwargs.pop("title", None)
         self._text: str | Iterable[str] | Callable[[], str | Iterable[str]] | None = kwargs.pop("text", None)
         self._after_id: str | None = None
@@ -159,6 +161,9 @@ class CTkToolTip(CTkFloatingFrame):
             if self._state != tkinter.NORMAL:
                 self.close()
 
+        if "pre_command" in kwargs:
+            self._pre_command = kwargs.pop("pre_command")
+
         if "command" in kwargs:
             self._command = kwargs.pop("command")
 
@@ -179,7 +184,7 @@ class CTkToolTip(CTkFloatingFrame):
             self._title_label.configure(**label_kwargs)
             self._text_label.configure(**label_kwargs)
 
-        # "mode" is not changeable after creation
+        # "mode" and "close_on_interaction" are not changeable after creation
 
         if require_geometry:
             self._update_geometry()
@@ -193,6 +198,12 @@ class CTkToolTip(CTkFloatingFrame):
             return self._mode
         elif attribute_name == "state":
             return self._state
+        elif attribute_name == "close_on_interaction":
+            return self._close_on_interaction
+        elif attribute_name == "pre_command":
+            return self._pre_command
+        elif attribute_name == "command":
+            return self._command
         elif attribute_name == "title":
             return self._title
         elif attribute_name == "text":
@@ -208,9 +219,9 @@ class CTkToolTip(CTkFloatingFrame):
 
     def show(self) -> None:
         """ Shows the widget immediately or updates the position if already visible. """
-        retval = "" if self._command is None else self._command()
+        retval = "" if self._pre_command is None else self._pre_command()
 
-        #if _command() returns exactly "break", operation is stopped
+        #if _pre_command() returns exactly "break", operation is stopped
         if retval != "break":
             title_str = self._get_string(self._title)
             text_str = self._get_string(self._text)
@@ -227,6 +238,9 @@ class CTkToolTip(CTkFloatingFrame):
                     x_root, y_root, anchor = self._mouse_mode()
 
                 self.open(x_root, y_root, anchor)
+
+                if self._command is not None:
+                    self._command()
 
     def close(self) -> None:
         self._unschedule()

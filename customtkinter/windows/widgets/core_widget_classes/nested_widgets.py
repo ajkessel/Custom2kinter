@@ -255,7 +255,7 @@ class CanvasWithLabel(ABC):
                                  width=canvas_width,
                                  height=canvas_height)
 
-        self._text_label = tkinter.Label(master=self, bd=0, padx=0, pady=0)
+        self._text_label = tkinter.Label(master=self, borderwidth=0, padx=0, pady=0)
 
     def _update_geometry(self, compound: str, widget_label_spacing: int) -> None:
         # configure grid system (1x3 or 3x1)

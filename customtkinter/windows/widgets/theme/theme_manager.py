@@ -139,7 +139,7 @@ class ThemeManager:
         deep_update(cls._theme[custom_key], kwargs)
 
     @classmethod
-    def get_info(cls, default_key: str, custom_key: str | None, **kwargs: Unpack[ThemeInfo]) -> ThemeInfo:
+    def get_info(cls, default_key: str, custom_key: str | None = None, **kwargs: Unpack[ThemeInfo]) -> ThemeInfo:
         theme_info: ThemeInfo = {}
         deep_update(theme_info, cls._theme[default_key])
         if custom_key is not None:
