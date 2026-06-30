@@ -33,11 +33,12 @@ def test_maxsize_bounds_desired_size(ctk_root):
     assert ctk_root._desired_width == 400
 
 
-def test_configure_fg_color_via_bg_alias(ctk_root):
-    ctk_root.configure(bg="white")
+def test_configure_fg_color(ctk_root):
+    ctk_root.configure(fg_color="white")
     assert ctk_root.cget("fg_color") == "white"
+    assert ctk_root.cget("bg") == "white"
 
-    ctk_root.configure(background="red")
+    ctk_root.configure(fg_color="red")
     assert ctk_root.cget("fg_color") == "red"
     assert ctk_root.cget("bg") == "red"
 

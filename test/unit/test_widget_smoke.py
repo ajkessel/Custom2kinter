@@ -99,8 +99,6 @@ def test_widget_renders_with_each_drawing_method(ctk_root, drawing_method, build
         (customtkinter.CTkButton, {"text": "B"}),
         (customtkinter.CTkLabel, {"text": "L"}),
         (customtkinter.CTkFrame, {}),
-        (customtkinter.CTkSlider, {}),
-        (customtkinter.CTkProgressBar, {}),
     ],
 )
 def test_width_height_configure_cget_round_trip(ctk_root, cls, kwargs):
@@ -114,3 +112,17 @@ def test_width_height_configure_cget_round_trip(ctk_root, cls, kwargs):
     widget.configure(width=200, height=60)
     assert widget.cget("width") == 200
     assert widget.cget("height") == 60
+
+
+@pytest.mark.parametrize("cls", [customtkinter.CTkSlider, customtkinter.CTkProgressBar])
+def test_length_thickness_configure_cget_round_trip(ctk_root, cls):
+    widget = cls(ctk_root, length=120, thickness=40)
+    widget.pack(padx=5, pady=5)
+    ctk_root.update_idletasks()
+
+    assert widget.cget("length") == 120
+    assert widget.cget("thickness") == 40
+
+    widget.configure(length=200, thickness=60)
+    assert widget.cget("length") == 200
+    assert widget.cget("thickness") == 60
