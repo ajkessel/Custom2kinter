@@ -90,14 +90,18 @@ class CTkButton(CTkWidget):
                                          anchor=self._theme_info["anchor"],
                                          padx=0,
                                          pady=0,
-                                         borderwidth=1,
+                                         borderwidth=0,
                                          textvariable=self._textvariable)
         self._bind_targets.append(self._text_label)
 
         # image
         self._image: CTkImage = CTkImage.from_parameter(self._theme_info["image"])
         self._image.add_configure_callback(self._update_image)
-        self._image_label = tkinter.Label(master=self, anchor=self._theme_info["anchor"])
+        self._image_label = tkinter.Label(master=self,
+                                          anchor=self._theme_info["anchor"],
+                                          padx=0,
+                                          pady=0,
+                                          borderwidth=0)
         self._bind_targets.append(self._image_label)
 
         # functionality

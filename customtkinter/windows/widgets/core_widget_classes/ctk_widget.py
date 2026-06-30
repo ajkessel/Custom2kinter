@@ -71,6 +71,9 @@ class CTkWidget(tkinter.Frame, CTkAppearanceModeBaseClass, CTkScalingBaseClass, 
         # check for unknown arguments
         check_kwargs_empty(kwargs, raise_error=True)
 
+        # set bg color of tkinter.Frame (required to avoid a white flash at start-up)
+        super().configure(bg=self._apply_appearance_mode(self._bg_color))
+
         # add configure callback to tkinter.Frame
         super().bind("<Configure>", self._update_dimensions_event)
 

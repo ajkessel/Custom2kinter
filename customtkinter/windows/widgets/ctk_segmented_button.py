@@ -34,7 +34,8 @@ class CTkSegmentedButtonArgs(CTkSegmentedButtonThemedArgs, total=False, closed=T
     state: Literal["normal", "disabled"]
     values: list[str] | None
     variable: tkinter.StringVar | None
-    command: Callable[[str], Literal["break"] | None] | None
+    pre_command: Callable[[str], Literal["break"] | None] | None
+    command: Callable[[str], None] | None
     background_corner_colors: tuple[ColorType, ...] | None
 
 
@@ -70,7 +71,8 @@ class CTkSegmentedButton(CTkFrame):
 
         #functionality
         self._state: Literal["normal", "disabled"] = kwargs.pop("state", tkinter.NORMAL)
-        self._command: Callable[[str], Literal["break"] | None] | None = kwargs.pop("command", None)
+        self._pre_command: Callable[[str], Literal["break"] | None] | None = kwargs.pop("pre_command", None)
+        self._command: Callable[[str], None] | None = kwargs.pop("command", None)
         self._values: list[str] = kwargs.pop("values", [])
         self._variable: tkinter.StringVar | None = kwargs.pop("variable", None)
         self._variable_callback_name: str | None = None
@@ -309,6 +311,9 @@ class CTkSegmentedButton(CTkFrame):
                 self._variable_callback_name = self._variable.trace_add("write", self._variable_callback)
                 self._variable_callback()
 
+        if "pre_command" in kwargs:
+            self._pre_command = kwargs.pop("pre_command")
+
         if "command" in kwargs:
             self._command = kwargs.pop("command")
 
@@ -326,6 +331,8 @@ class CTkSegmentedButton(CTkFrame):
             return copy.copy(self._values)
         elif attribute_name == "variable":
             return self._variable
+        elif attribute_name == "pre_command":
+            return self._pre_command
         elif attribute_name == "command":
             return self._command
         elif attribute_name == "background_corner_colors":
@@ -347,11 +354,14 @@ class CTkSegmentedButton(CTkFrame):
         """ Changes the active button following the provided value.\n
         Can be called to simulate the user who clicks on a specific button. """
         if value != self._current_value:
-            retval = "" if self._command is None else self._command(value)
+            retval = "" if self._pre_command is None else self._pre_command(value)
 
-            #if _command() returns exactly "break", operation is stopped
+            #if _pre_command() returns exactly "break", operation is stopped
             if retval != "break":
                 self.set(value)
+
+                if self._command is not None:
+                    self._command(value)
 
     def get(self, index: int | None = None) -> str:
         """ Returns the current value.\n

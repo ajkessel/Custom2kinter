@@ -36,7 +36,8 @@ class CTkRadioButtonArgs(CTkRadioButtonThemedArgs, total=False, closed=True):
     value: int | float | str | bool
     textvariable: tkinter.StringVar | None
     variable: tkinter.Variable | None
-    command: Callable[[int | float | str | bool], Literal["break"] | None] | None
+    pre_command: Callable[[int | float | str | bool], Literal["break"] | None] | None
+    command: Callable[[int | float | str | bool], None] | None
 
 
 class CTkRadioButton(CTkWidget, CTkToggleable, CanvasWithLabel):
@@ -73,6 +74,7 @@ class CTkRadioButton(CTkWidget, CTkToggleable, CanvasWithLabel):
 
         # functionality
         self._state = kwargs.pop("state", tkinter.NORMAL)
+        self._pre_command = kwargs.pop("pre_command", None)
         self._command = kwargs.pop("command", None)
         self._onvalue = kwargs.pop("value", 0)
         self._offvalue = ""
@@ -178,7 +180,7 @@ class CTkRadioButton(CTkWidget, CTkToggleable, CanvasWithLabel):
     def _variable_callback(self, *_: str) -> None:
         if not self._block_value_propagation.locked():
             with self._block_value_propagation:
-                self.set(self._variable.get() == self._onvalue)
+                self.set(self._variable.get())
 
     def _on_enter(self, _: tkinter.Event | None = None) -> None:
         if self._theme_info["hover"] and self._state == tkinter.NORMAL:
@@ -282,6 +284,9 @@ class CTkRadioButton(CTkWidget, CTkToggleable, CanvasWithLabel):
         if "hover" in kwargs:
             self._theme_info["hover"] = kwargs.pop("hover")
 
+        if "pre_command" in kwargs:
+            self._pre_command = kwargs.pop("pre_command")
+
         if "command" in kwargs:
             self._command = kwargs.pop("command")
 
@@ -303,6 +308,8 @@ class CTkRadioButton(CTkWidget, CTkToggleable, CanvasWithLabel):
             return self._onvalue
         elif attribute_name == "variable":
             return self._variable
+        elif attribute_name == "pre_command":
+            return self._pre_command
         elif attribute_name == "command":
             return self._command
         elif attribute_name in self._theme_info:
@@ -310,8 +317,8 @@ class CTkRadioButton(CTkWidget, CTkToggleable, CanvasWithLabel):
         else:
             return super().cget(attribute_name)
 
-    def set(self, state: bool) -> None:
-        super().set(state)
+    def set(self, value: int | float | str | bool | None = None, state: bool | None = None) -> None:
+        super().set(value, state)
         self._draw(force_colors_update=True)
 
     def invoke(self, _: tkinter.Event | None = None) -> None:

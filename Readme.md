@@ -7,7 +7,7 @@
 
 <div align="center">
   
-![PyPI](https://img.shields.io/pypi/v/custom2kinter)
+[![PyPI](https://img.shields.io/pypi/v/custom2kinter)](https://pypi.org/project/custom2kinter/)
 ![PyPI - Downloads](https://img.shields.io/pypi/dm/custom2kinter?color=green&label=downloads)
 ![Total Downloads](https://static.pepy.tech/personalized-badge/custom2kinter?period=total&units=international_system&left_color=grey&right_color=green&left_text=total%20downloads)
 ![PyPI - License](https://img.shields.io/badge/license-MIT-blue)
@@ -51,7 +51,7 @@ name, so existing code doesn't need to be updated.
 
 
 ## Installation
-Install the module with pip:
+Install the module with [pip](https://pypi.org/project/custom2kinter/):
 ```
 pip3 install custom2kinter
 ```

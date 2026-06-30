@@ -35,7 +35,8 @@ class CTkOptionMenuArgs(CTkOptionMenuThemedArgs, total=False, closed=True):
     state: Literal["normal", "disabled"]
     values: list[str] | None
     variable: tkinter.StringVar | None
-    command: Callable[[str], Literal["break"] | None] | None
+    pre_command: Callable[[str], Literal["break"] | None] | None
+    command: Callable[[str], None] | None
 
 
 class CTkOptionMenu(CTkWidget):
@@ -69,7 +70,8 @@ class CTkOptionMenu(CTkWidget):
 
         # functionality
         self._state: Literal["normal", "disabled"] = kwargs.pop("state", tkinter.NORMAL)
-        self._command: Callable[[str], Literal["break"] | None] | None = kwargs.pop("command", None)
+        self._pre_command: Callable[[str], Literal["break"] | None] | None = kwargs.pop("pre_command", None)
+        self._command: Callable[[str], None] | None = kwargs.pop("command", None)
         self._variable: tkinter.StringVar | None = kwargs.pop("variable", None)
         self._variable_callback_name: str | None = None
         self._block_value_propagation: Lock = Lock()
@@ -101,7 +103,7 @@ class CTkOptionMenu(CTkWidget):
                                          anchor=self._theme_info["anchor"],
                                          padx=0,
                                          pady=0,
-                                         borderwidth=1,
+                                         borderwidth=0,
                                          text=self._current_value)
         self._bind_targets.append(self._text_label)
         self._focus_target = self._text_label
@@ -280,6 +282,9 @@ class CTkOptionMenu(CTkWidget):
         if "hover" in kwargs:
             self._theme_info["hover"] = kwargs.pop("hover")
 
+        if "pre_command" in kwargs:
+            self._pre_command = kwargs.pop("pre_command")
+
         if "command" in kwargs:
             self._command = kwargs.pop("command")
 
@@ -306,6 +311,8 @@ class CTkOptionMenu(CTkWidget):
             return copy.copy(self._values)
         elif attribute_name == "variable":
             return self._variable
+        elif attribute_name == "pre_command":
+            return self._pre_command
         elif attribute_name == "command":
             return self._command
         elif attribute_name in self._theme_info:
@@ -331,11 +338,14 @@ class CTkOptionMenu(CTkWidget):
                 self.set(self._variable.get())
 
     def _dropdown_callback(self, value: str) -> None:
-        retval = "" if self._command is None else self._command(value)
+        retval = "" if self._pre_command is None else self._pre_command(value)
 
-        #if _command() returns exactly "break", operation is stopped
+        #if _pre_command() returns exactly "break", operation is stopped
         if retval != "break":
             self.set(value)
+
+            if self._command is not None:
+                self._command(value)
 
     def set(self, value: str) -> None:
         """ Changes the content to the desired value, regardless of the widget's state and admissible values. """

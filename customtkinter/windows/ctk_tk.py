@@ -13,6 +13,7 @@ from .widgets.appearance_mode import CTkAppearanceModeBaseClass
 from .widgets.scaling import CTkScalingBaseClass
 from .widgets.core_widget_classes import CTkContainer
 from .widgets.theme import ColorType, ThemeManager
+from .widgets.image import CTkImage
 from .widgets.utility import pop_from_dict_by_iterable, check_kwargs_empty, parse_geometry_string
 
 
@@ -61,10 +62,12 @@ class CTk(tkinter.Tk, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTkContai
     deactivate_windows_header_manipulation: bool = False
     deactivate_macos_header_manipulation: bool = False
 
-    def __init__(self, **kwargs: Unpack[CTkArgs]) -> None:
+    def __init__(self,
+                 theme_key: str | None = None,
+                 **kwargs: Unpack[CTkArgs]) -> None:
 
         theme_args = pop_from_dict_by_iterable(kwargs, CTkThemedArgs.__annotations__)
-        self._theme_info: CTkThemedArgs = ThemeManager.get_info("CTk", None, **theme_args)
+        self._theme_info: CTkThemedArgs = ThemeManager.get_info("CTk", theme_key, **theme_args)
 
         #validity checks
         for key in self._theme_info:
@@ -95,7 +98,9 @@ class CTk(tkinter.Tk, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTkContai
         super().title(self._theme_info["title"])
 
         # functionality
-        self._iconbitmap_method_called: bool = False  # indicates if wm_iconbitmap method got called
+        self._default_icon_set: bool = False
+        self._iconphoto_default: bool = False
+        self._iconphoto_images: tuple[CTkImage, ...] = ()
         self._state_before_windows_set_titlebar_color: str | None = None
         self._window_exists: bool = False  # indicates if the window is already shown through update() or mainloop() after init
         self._withdraw_called_before_window_exists: bool = False  # indicates if withdraw() was called before window is first shown through update() or mainloop()
@@ -108,8 +113,6 @@ class CTk(tkinter.Tk, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTkContai
 
         # Windows only
         if sys.platform.startswith("win"):
-            # set CustomTkinter titlebar icon
-            self.after(200, self._windows_set_titlebar_icon)
             # set titlebar color
             self._windows_set_titlebar_color(self._get_appearance_mode())
 
@@ -194,6 +197,14 @@ class CTk(tkinter.Tk, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTkContai
                     self.deiconify()
 
             self._window_exists = True
+
+        if not self._default_icon_set:
+            try:
+                customtkinter_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                self.wm_iconphoto(True, CTkImage(light_image=os.path.join(customtkinter_directory, "assets", "icons", "CustomTkinter_icon_Windows.ico")))
+            except Exception:
+                pass
+
         super().mainloop(*args, **kwargs)
 
     def resizable(self, width: bool | None = None, height: bool | None = None) -> tuple[bool, bool] | None:
@@ -262,22 +273,33 @@ class CTk(tkinter.Tk, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTkContai
         else:
             return super().cget(attribute_name)
 
-    def wm_iconbitmap(self, bitmap: Any = None, default: Any = None) -> None:
-        self._iconbitmap_method_called = True
+    def wm_iconbitmap(self,
+                      bitmap: str | tkinter.PhotoImage | None = None,
+                      default: str | tkinter.PhotoImage | None = None) -> None:
+        """ Sets the window icon to the specified image, which MUST be a '.ico' file.\n
+        If the image is provided using the 'default' argument, the change will affect ALL past and future windows
+        for which wm_iconbitmap wasn't called or was called using the 'default' argument.\n
+        If 'default' is None, the change will affect only this window, and the icon won't change unless
+        this method is called again.\n
+        This method should be considered deprecated in favour of 'wm_iconphoto'."""
+        if default:
+            self._default_icon_set = True
         super().wm_iconbitmap(bitmap, default)
 
-    def iconbitmap(self, bitmap: Any = None, default: Any = None) -> None:
-        self._iconbitmap_method_called = True
-        super().wm_iconbitmap(bitmap, default)
-
-    def _windows_set_titlebar_icon(self) -> None:
-        try:
-            # if not the user already called iconbitmap method, set icon
-            if not self._iconbitmap_method_called:
-                customtkinter_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                self.iconbitmap(os.path.join(customtkinter_directory, "assets", "icons", "CustomTkinter_icon_Windows.ico"))
-        except Exception:
-            pass
+    def wm_iconphoto(self,
+                     default: bool,
+                     *images: tuple[CTkImage, ...]) -> None:
+        """ Sets the window icon to the specified images (you can provide many pre-scaled images).\n
+        If 'default' is True, the change will affect ALL past and future windows for which wm_iconphoto
+        wasn't called or was called with 'default=True'.\n
+        If 'default' is False, the change will affect only this window, and the icon won't change unless
+        this method is called again. """
+        if default:
+            self._default_icon_set = True
+        self._iconphoto_default = default
+        self._iconphoto_images = images
+        images = tuple(img.get(1.0, self._get_appearance_mode()) if isinstance(img, CTkImage) else img for img in images)
+        super().wm_iconphoto(default, *images)
 
     @classmethod
     def _enable_macos_dark_title_bar(cls) -> None:
@@ -361,5 +383,9 @@ class CTk(tkinter.Tk, CTkAppearanceModeBaseClass, CTkScalingBaseClass, CTkContai
     def _set_appearance_mode(self) -> None:
         if sys.platform.startswith("win"):
             self._windows_set_titlebar_color(self._get_appearance_mode())
+
+        if self._iconphoto_images:
+            images = tuple(img.get(1.0, self._get_appearance_mode()) if isinstance(img, CTkImage) else img for img in self._iconphoto_images)
+            super().wm_iconphoto(self._iconphoto_default, *images)
 
         super().configure(bg=self._apply_appearance_mode(self._fg_color))
